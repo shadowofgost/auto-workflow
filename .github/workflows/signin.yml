@@ -3,7 +3,7 @@ name: Aliyun Signin
 on:
   schedule:
    # 每天国际时间 14:40 运行一次, 中国时间 22:40
-    - cron: '40 1 * * *'
+    - cron: '32 1 * * *'
   workflow_dispatch:
 jobs:
   signin:
@@ -14,7 +14,7 @@ jobs:
         with:
           REFRESH_TOKENS: ${{ secrets.REFRESH_TOKENS }}
           GP_TOKEN: ${{ secrets.GP_TOKEN}}
-          PUSH_TYPES: ''
+          PUSH_TYPES: 'telegram'
           DO_NOT_REWARD: 'false'
           SERVERCHAN_SEND_KEY: ${{ secrets.SERVERCHAN_SEND_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
