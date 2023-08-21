@@ -1,5 +1,5 @@
 FROM golang:1.21-alpine AS builder
-LABEL org.opencontainers.image.source = "https://github.com/shadowofgost/auto-workflow"
+# LABEL org.opencontainers.image.source = "https://github.com/shadowofgost/auto-workflow"
 
 WORKDIR /app
 
