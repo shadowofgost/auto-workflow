@@ -40,11 +40,11 @@ jobs:
       - name: Build and push ip_derper Docker images to docker.io and ghcr.io
         uses: docker/build-push-action@v4
         with:
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           context: ./derper/ip
           push: true
           tags: |
-            ghcr.io/shadowofgost/auto-workflow:ip
+            ghcr.io/shadowofgost/derp:ip
             shadowofgost/derper:ip
 
       - name: Build and push Docker derper images to docker.io and ghcr.io
@@ -54,5 +54,5 @@ jobs:
           context: ./derper/main
           push: true
           tags: |
-            ghcr.io/shadowofgost/auto-workflow:main
+            ghcr.io/shadowofgost/derp:main
             shadowofgost/derper:main
