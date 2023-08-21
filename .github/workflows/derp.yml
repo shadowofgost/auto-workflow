@@ -1,4 +1,4 @@
-name: Disable Checking ServerName
+name: derp build
 
 on:
   workflow_dispatch:
