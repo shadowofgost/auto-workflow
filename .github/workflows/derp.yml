@@ -40,7 +40,7 @@ jobs:
       - name: Build and push ip_derper Docker images to docker.io and ghcr.io
         uses: docker/build-push-action@v4
         with:
-          file: './derp/ip/Dockerfile'
+          file: './derper/ip/Dockerfile'
           platforms: linux/amd64
           context: ./derper/ip
           push: true
