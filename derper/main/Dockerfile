@@ -1,4 +1,5 @@
 FROM golang:1.21-alpine AS builder
+LABEL org.opencontainers.image.source = "https://github.com/shadowofgost/auto-workflow"
 WORKDIR /app
 
 # https://tailscale.com/kb/1118/custom-derp-servers/
