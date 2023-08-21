@@ -1,4 +1,4 @@
-name: derp build
+name: derper build
 
 on:
   workflow_dispatch:
