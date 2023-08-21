@@ -45,8 +45,8 @@ jobs:
           context: ./derper/ip
           push: true
           tags: |
+            ghcr.io/shadowofgost/derper:latest
             shadowofgost/derper:ip
-            ghcr.io/shadowofgost/derper:ip
 
       - name: Build and push Docker derper images to docker.io and ghcr.io
         uses: docker/build-push-action@v4
