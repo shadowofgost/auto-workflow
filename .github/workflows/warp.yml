@@ -1,16 +1,10 @@
-name: derper build
+name: warp build
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: "0 0 * * Mon"
-  push:
-    branches:
-      - main
-  pull_request:
-    branches: [ main ]
-  pull_request_target:
-    types: [assigned, opened, synchronize, reopened]
+   # 每天国际时间 14:40 运行一次, 中国时间 22:40
+    - cron: '5 0 1 * *'
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -43,18 +37,8 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           platforms: linux/amd64,linux/arm64
-          context: ./derper/ip
+          context: ./warp
           push: true
           tags: |
-            ghcr.io/shadowofgost/derp:ip
-            shadowofgost/derper:ip
-
-      - name: Build and push Docker derper images to docker.io and ghcr.io
-        uses: docker/build-push-action@v4
-        with:
-          platforms: linux/amd64,linux/arm64
-          context: ./derper/main
-          push: true
-          tags: |
-            ghcr.io/shadowofgost/derp:main
-            shadowofgost/derper:main
+            ghcr.io/shadowofgost/warp:latest
+            shadowofgost/warp:latest
