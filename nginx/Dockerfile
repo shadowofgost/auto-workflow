@@ -1,9 +1,12 @@
-FROM nginx:mainline
+FROM nginx:mainline-alpine-slim
 
 WORKDIR /root
 COPY xray.sh /root/xray.sh
 COPY config.json /etc/xray/config.json
-RUN apt-get update && apt-get install -y wget tzdata iproute2 ca-certificates \
+COPY nginx.conf /etc/nginx/nginx.conf
+
+RUN set -ex \
+	&& apk add --no-cache tzdata ca-certificates wget \
 	&& mkdir -p /var/log/xray /usr/share/xray \
 	&& chmod +x /root/xray.sh \
 	&& /root/xray.sh \
