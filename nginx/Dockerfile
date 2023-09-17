@@ -1,4 +1,4 @@
-FROM nginx:mainline-alpine-slim
+FROM nginx:mainline
 
 WORKDIR /root
 COPY xray.sh /root/xray.sh
