@@ -3,8 +3,7 @@ FROM nginx:mainline
 WORKDIR /root
 COPY xray.sh /root/xray.sh
 COPY config.json /etc/xray/config.json
-RUN apt-get update && apt-get install -y wget unzip iproute2 systemctl \
-	&& apt install --no-cache tzdata ca-certificates \
+RUN apt-get update && apt-get install -y wget tzdata ca-certificates \
 	&& mkdir -p /var/log/xray /usr/share/xray \
 	&& chmod +x /root/xray.sh \
 	&& /root/xray.sh \
