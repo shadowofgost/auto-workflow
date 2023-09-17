@@ -4,9 +4,6 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "0 0 * * Mon"
-  push:
-    branches:
-      - main
   pull_request:
     branches: [ main ]
   pull_request_target:
