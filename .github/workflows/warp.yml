@@ -2,8 +2,7 @@ name: warp build
 
 on:
   schedule:
-   # 每天国际时间 14:40 运行一次, 中国时间 22:40
-    - cron: '5 0 1 * *'
+  - cron: "0 0 * * Mon"
   workflow_dispatch:
 
 jobs:
