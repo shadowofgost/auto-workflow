@@ -14,7 +14,8 @@ RUN apt-get update && \
     apt-get install -y cloudflare-warp && \
     apt-get clean all && \
     apt-get autoclean && \
-    apt-get autoremove
+    apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN  mkdir -p /var/log/xray /usr/share/xray \
     && chmod +x /root/xray.sh \
