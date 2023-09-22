@@ -1,0 +1,364 @@
+{
+    "dns": {
+        "servers": [
+            "https+local://1.1.1.1/dns-query",
+            "https://dns.google/dns-query",
+            "https://dns.alidns.com/dns-query",
+            "localhost"
+        ]
+    },
+    "inbounds": [
+        {
+            "listen": "0.0.0.0",
+            "port": 2443,
+            "protocol": "trojan",
+            "tag": "trojan-ws",
+            "settings": {
+                "clients": [
+                    {
+                        "level": 0,
+                        "password": "@WzR@CsY@1260",
+                        "email": "shadowofgost@outlook.com"
+                    }
+                ],
+                "fallbacks": [
+                    {
+                        "alpn": "http/1.1",
+                        "dest": "Nginx:8180",
+                        "xver": 2
+                    },
+                    {
+                        "alpn": "h2",
+                        "dest": "Nginx:8280",
+                        "xver": 2
+                    }
+                ]
+            },
+            "sniffing": {
+                "destOverride": [
+                    "http",
+                    "tls",
+                    "quic"
+                ],
+                "enabled": true
+            },
+            "streamSettings": {
+                "network": "ws",
+                "security": "none",
+                "wsSettings": {
+                    "path": "/trws"
+                }
+            }
+        },
+        {
+            "listen": "0.0.0.0",
+            "port": 3443,
+            "protocol": "trojan",
+            "tag": "trojan-grpc",
+            "settings": {
+                "clients": [
+                    {
+                        "level": 0,
+                        "password": "@WzR@CsY@1260",
+                        "email": "shadowofgost@outlook.com"
+                    }
+                ],
+                "fallbacks": [
+                    {
+                        "alpn": "http/1.1",
+                        "dest": "Nginx:8180",
+                        "xver": 2
+                    },
+                    {
+                        "alpn": "h2",
+                        "dest": "Nginx:8280",
+                        "xver": 2
+                    },
+                    {
+                        "dest": 2443,
+                        "path": "/trws",
+                        "xver": 2
+                    }
+                ]
+            },
+            "sniffing": {
+                "destOverride": [
+                    "http",
+                    "tls",
+                    "quic"
+                ],
+                "enabled": true
+            },
+            "streamSettings": {
+                "network": "grpc",
+                "security": "none",
+                "grpcSettings": {
+                    "serviceName": "trgrpc"
+                }
+            }
+        },
+        {
+            "listen": "0.0.0.0",
+            "port": 4443,
+            "protocol": "vless",
+            "tag": "vless-tcp",
+            "settings": {
+                "clients": [
+                    {
+                        "id": "0487c427-6969-5e25-8399-3a57610d4cb8",
+                        "level": 0,
+                        "flow": "xtls-rprx-vision",
+                        "email": "shadowofgost@outlook.com"
+                    }
+                ],
+                "decryption": "none",
+                "fallbacks": [
+                    {
+                        "alpn": "http/1.1",
+                        "dest": "Nginx:8180",
+                        "xver": 2
+                    },
+                    {
+                        "alpn": "h2",
+                        "dest": "Nginx:8280",
+                        "xver": 2
+                    },
+                    {
+                        "dest": 5443,
+                        "path": "/vlws",
+                        "xver": 2
+                    }
+                ]
+            },
+            "streamSettings": {
+                "network": "tcp",
+                "security": "reality",
+                "tcpSettings": {
+                    "acceptProxyProtocol": true
+                },
+                "realitySettings": {
+                    "show": false,
+                    "dest": "nginx-shadowofgost.cloud.okteto.net:443",
+                    "xver": 2,
+                    "serverNames": [
+                        "nginx-shadowofgost.cloud.okteto.net"
+                    ],
+                    "privateKey": "qKquQGPSlaUvNfOBwS-H2m3QvHlJXrxNGpx_Mc7hj0M",
+                    "shortIds": [
+                        "1a",
+                        "2b",
+                        "3c",
+                        "4d"
+                    ]
+                }
+            }
+        },
+        {
+            "listen": "0.0.0.0",
+            "port": 5443,
+            "protocol": "vless",
+            "tag": "vless-ws",
+            "settings": {
+                "clients": [
+                    {
+                        "id": "0487c427-6969-5e25-8399-3a57610d4cb8",
+                        "level": 0,
+                        "flow": "xtls-rprx-vision",
+                        "email": "shadowofgost@outlook.com"
+                    }
+                ],
+                "decryption": "none",
+                "fallbacks": [
+                    {
+                        "alpn": "http/1.1",
+                        "dest": "Nginx:8180",
+                        "xver": 2
+                    },
+                    {
+                        "alpn": "h2",
+                        "dest": "Nginx:8280",
+                        "xver": 2
+                    }
+                ]
+            },
+            "sniffing": {
+                "destOverride": [
+                    "http",
+                    "tls",
+                    "quic"
+                ],
+                "enabled": true
+            },
+            "streamSettings": {
+                "network": "ws",
+                "security": "none",
+                "wsSettings": {
+                    "path": "/vlws"
+                }
+            }
+        },
+        {
+            "listen": "0.0.0.0",
+            "port": 6443,
+            "protocol": "vless",
+            "tag": "vless-grpc",
+            "settings": {
+                "clients": [
+                    {
+                        "id": "0487c427-6969-5e25-8399-3a57610d4cb8",
+                        "level": 0,
+                        "flow": "xtls-rprx-vision",
+                        "email": "shadowofgost@outlook.com"
+                    }
+                ],
+                "decryption": "none",
+                "fallbacks": [
+                    {
+                        "alpn": "http/1.1",
+                        "dest": "Nginx:8180",
+                        "xver": 2
+                    },
+                    {
+                        "alpn": "h2",
+                        "dest": "Nginx:8280",
+                        "xver": 2
+                    },
+                    {
+                        "dest": 5443,
+                        "path": "/vlws",
+                        "xver": 2
+                    }
+                ]
+            },
+            "sniffing": {
+                "destOverride": [
+                    "http",
+                    "tls",
+                    "quic"
+                ],
+                "enabled": true
+            },
+            "streamSettings": {
+                "network": "grpc",
+                "security": "none",
+                "grpcSettings": {
+                    "serviceName": "vlgrpc"
+                }
+            }
+        },
+        {
+            "listen": "0.0.0.0",
+            "port": 8443,
+            "protocol": "vmess",
+            "tag": "vmess-ws",
+            "settings": {
+                "clients": [
+                    {
+                        "id": "5783a3e7-e373-51cd-8642-c83782b807c5",
+                        "level": 0,
+                        "alterId": 0,
+                        "email": "@WzR@CsY@1260"
+                    }
+                ],
+                "default": {
+                    "level": 0,
+                    "alterId": 0
+                },
+                "disableInsecureEncryption": true
+            },
+            "sniffing": {
+                "destOverride": [
+                    "http",
+                    "tls",
+                    "quic"
+                ],
+                "enabled": true
+            },
+            "streamSettings": {
+                "network": "ws",
+                "security": "none",
+                "wsSettings": {
+                    "path": "/vmws"
+                }
+            }
+        },
+        {
+            "listen": "0.0.0.0",
+            "port": 9443,
+            "protocol": "vmess",
+            "tag": "vmess-grpc",
+            "settings": {
+                "clients": [
+                    {
+                        "id": "5783a3e7-e373-51cd-8642-c83782b807c5",
+                        "level": 0,
+                        "alterId": 0,
+                        "email": "@WzR@CsY@1260"
+                    }
+                ],
+                "default": {
+                    "level": 0,
+                    "alterId": 0
+                },
+                "disableInsecureEncryption": true
+            },
+            "sniffing": {
+                "destOverride": [
+                    "http",
+                    "tls",
+                    "quic"
+                ],
+                "enabled": true
+            },
+            "streamSettings": {
+                "network": "grpc",
+                "security": "none",
+                "grpcSettings": {
+                    "serviceName": "vmgrpc"
+                }
+            }
+        }
+    ],
+    "log": {
+        "access": "",
+        "error": "",
+        "loglevel": "info"
+    },
+    "outbounds": [
+        {
+            "protocol": "freedom",
+            "tag": "direct"
+        },
+        {
+            "protocol": "blackhole",
+            "tag": "block"
+        },
+        {
+            "tag": "warp",
+            "protocol": "socks",
+            "settings": {
+                "servers": [
+                    {
+                        "address": "127.0.0.1",
+                        "port": 40000,
+                        "users": []
+                    }
+                ]
+            }
+        }
+    ],
+    "routing": {
+        "domainStrategy": "IPIfNonMatch",
+        "rules": [
+            {
+                "type": "field",
+                "domain": [
+                    "openai.com",
+                    "ai.com",
+                    "geosite:netflix"
+                ],
+                "outboundTag": "warp"
+            }
+        ]
+    }
+}
