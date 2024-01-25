@@ -17,8 +17,8 @@
                 "clients": [
                     {
                         "level": 0,
-                        "password": "@WzR@CsY@1260",
-                        "email": "shadowofgost@outlook.com"
+                        "password": "111111",
+                        "email": "example@test.com"
                     }
                 ],
                 "fallbacks": [
@@ -59,8 +59,8 @@
                 "clients": [
                     {
                         "level": 0,
-                        "password": "@WzR@CsY@1260",
-                        "email": "shadowofgost@outlook.com"
+                        "password": "111111",
+                        "email": "example@test.com"
                     }
                 ],
                 "fallbacks": [
@@ -108,7 +108,7 @@
                         "id": "0487c427-6969-5e25-8399-3a57610d4cb8",
                         "level": 0,
                         "flow": "xtls-rprx-vision",
-                        "email": "shadowofgost@outlook.com"
+                         "email": "example@test.com"
                     }
                 ],
                 "decryption": "none",
@@ -164,7 +164,7 @@
                         "id": "0487c427-6969-5e25-8399-3a57610d4cb8",
                         "level": 0,
                         "flow": "xtls-rprx-vision",
-                        "email": "shadowofgost@outlook.com"
+                        "email": "example@test.com"
                     }
                 ],
                 "decryption": "none",
@@ -208,7 +208,7 @@
                         "id": "0487c427-6969-5e25-8399-3a57610d4cb8",
                         "level": 0,
                         "flow": "xtls-rprx-vision",
-                        "email": "shadowofgost@outlook.com"
+                        "email": "example@test.com"
                     }
                 ],
                 "decryption": "none",
@@ -257,7 +257,7 @@
                         "id": "5783a3e7-e373-51cd-8642-c83782b807c5",
                         "level": 0,
                         "alterId": 0,
-                        "email": "@WzR@CsY@1260"
+                        "email": "111111"
                     }
                 ],
                 "default": {
@@ -293,7 +293,7 @@
                         "id": "5783a3e7-e373-51cd-8642-c83782b807c5",
                         "level": 0,
                         "alterId": 0,
-                        "email": "@WzR@CsY@1260"
+                        "email": "111111"
                     }
                 ],
                 "default": {
