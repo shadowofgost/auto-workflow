@@ -1,6 +1,7 @@
 FROM ubuntu:22.04
 
 COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN  chmod +x /docker-entrypoint.sh
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y curl gpg lsb-release tzdata ca-certificates wget && \
