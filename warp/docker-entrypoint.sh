@@ -29,11 +29,11 @@ if [ ! -f /var/lib/cloudflare-warp/reg.json ]; then
         warp-cli set-license "$WARP_LICENSE_KEY" && echo "Warp license registered!"
     fi
      # Assuming $WARP_LICENSE_KEY contains the value "true" or "false"
-    if [[ "$WARP_LICENSE_KEY" == "TRUE" ]]; then
+    if [[ "$WARP_PROXY" == "TRUE" ]]; then
         echo "WARP_PROXY is true."
         warp-cli --accept-tos set-mode proxy
     else
-        echo "WARP_LICENSE_KEY is not recognized as true or false."
+        echo "WARP_PROXY is false."
     fi
     # connect to the warp server
     warp-cli connect
