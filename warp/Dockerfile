@@ -17,14 +17,16 @@ RUN apt-get update && \
     apt-get autoremove && \
     rm -rf /var/lib/apt/lists/*
 
-RUN  mkdir -p /var/log/xray /usr/share/xray \
-    && chmod +x /root/xray.sh \
-    && chmod +x /root/docker-entrypoint.sh \
-    && /root/xray.sh \
-    && rm -fv /root/xray.sh \
-    && wget -O /usr/share/xray/geosite.dat https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat \
-    && wget -O /usr/share/xray/geoip.dat https://github.com/v2fly/geoip/releases/latest/download/geoip.dat
-VOLUME /etc/xray
-ENV TZ=Asia/Shanghai
-CMD /root/docker-entrypoint.sh
+# Accept Cloudflare WARP TOS
+RUN mkdir -p /root/.local/share/warp && \
+    echo -n 'yes' > /root/.local/share/warp/accepted-tos.txt
+
+ENV GOST_ARGS="-L :1080"
+ENV WARP_SLEEP=2
+ENV WARP_PROXY=TRUE
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
+  CMD curl -fsS "https://cloudflare.com/cdn-cgi/trace" | grep -qE "warp=(plus|on)" || exit 1
+
+ENTRYPOINT ["/root/docker-entrypoint.sh"]
 #CMD [ "/usr/bin/xray", "-config", "/etc/xray/config.json" ]
