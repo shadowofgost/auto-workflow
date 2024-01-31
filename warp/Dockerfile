@@ -1,7 +1,6 @@
-FROM ubuntu:latest
+FROM ubuntu:22.04
 
-WORKDIR /root
-COPY docker-entrypoint.sh /root/docker-entrypoint.sh
+COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y curl gpg lsb-release tzdata ca-certificates wget && \
@@ -19,12 +18,12 @@ RUN apt-get update && \
 RUN mkdir -p /root/.local/share/warp && \
     echo -n 'yes' > /root/.local/share/warp/accepted-tos.txt
 
-ENV GOST_ARGS="-L :1080"
+# ENV GOST_ARGS="-L :1080"
 ENV WARP_SLEEP=2
 ENV WARP_PROXY=TRUE
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
   CMD curl -fsS "https://cloudflare.com/cdn-cgi/trace" | grep -qE "warp=(plus|on)" || exit 1
 
-ENTRYPOINT ["/root/docker-entrypoint.sh"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
 #CMD [ "/usr/bin/xray", "-config", "/etc/xray/config.json" ]
