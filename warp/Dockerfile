@@ -2,8 +2,6 @@ FROM ubuntu:latest
 
 WORKDIR /root
 COPY docker-entrypoint.sh /root/docker-entrypoint.sh
-COPY xray.sh /root/xray.sh
-COPY config.json /etc/xray/config.json
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y curl gpg lsb-release tzdata ca-certificates wget && \
