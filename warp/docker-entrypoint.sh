@@ -14,17 +14,29 @@
 ###
 
 set -e
-/usr/bin/xray -config /etc/xray/config.json &
-warp-svc  &
-sleep 3 &&  echo y | warp-cli --accept-tos register
-warp-cli --accept-tos set-license 1Op9F3g4-8Q9Yn0g6-743O9lrn
-warp-cli --accept-tos set-mode proxy
-# warp-cli set-custom-endpoint 104.20.38.141
-warp-cli --accept-tos connect
-warp-cli --accept-tos status
-while true;
-    do
-        warp-cli --accept-tos status
-        sleep 600;
-    done
-exec "$@"
+#start the daemon
+warp-svc &
+
+# sleep to wait for the daemon to start, default 2 seconds
+sleep "$WARP_SLEEP"
+
+# if /var/lib/cloudflare-warp/reg.json not exists, register the warp client
+if [ ! -f /var/lib/cloudflare-warp/reg.json ]; then
+    warp-cli register && echo "Warp client registered!"
+    # if a license key is provided, register the license
+    if [ -n "$WARP_LICENSE_KEY" ]; then
+        echo "License key found, registering license..."
+        warp-cli set-license "$WARP_LICENSE_KEY" && echo "Warp license registered!"
+    fi
+     # Assuming $WARP_LICENSE_KEY contains the value "true" or "false"
+    if [[ "$WARP_LICENSE_KEY" == "TRUE" ]]; then
+        echo "WARP_PROXY is true."
+        warp-cli --accept-tos set-mode proxy
+    else
+        echo "WARP_LICENSE_KEY is not recognized as true or false."
+    fi
+    # connect to the warp server
+    warp-cli connect
+else
+    echo "Warp client already registered, skip registration"
+fi
