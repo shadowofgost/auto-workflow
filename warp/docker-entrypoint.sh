@@ -40,3 +40,9 @@ if [ ! -f /var/lib/cloudflare-warp/reg.json ]; then
 else
     echo "Warp client already registered, skip registration"
 fi
+while true;
+    do
+        warp-cli --accept-tos status
+        sleep 600;
+    done
+exec "$@"
