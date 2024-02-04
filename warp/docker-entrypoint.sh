@@ -1,15 +1,15 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 ###
- # @Author           : Albert Wang
- # @Time             : 2023-09-22 18:30:01
- # @Description      :
- # @Email            : shadowofgost@outlook.com
- # @FilePath         : /okteto-deploy/warp-xray/docker-entrypoint.sh
- # @LastTime         : 2023-09-22 19:19:14
- # @LastAuthor       : Albert Wang
- # @Software         : Vscode
- #  Copyright Notice : Copyright (c) 2023 Albert Wang 王子睿, All Rights Reserved.
+# @Author           : Albert Wang
+# @Time             : 2023-09-22 18:30:01
+# @Description      :
+# @Email            : shadowofgost@outlook.com
+# @FilePath         : /auto-workflow/warp/docker-entrypoint.sh
+# @LastTime         : 2024-02-04 17:40:37
+# @LastAuthor       : Albert Wang
+# @Software         : Vscode
+#  Copyright Notice : Copyright (c) 2023 Albert Wang 王子睿, All Rights Reserved.
 ###
 
 set -e
@@ -24,8 +24,8 @@ if [ -n "$WARP_LICENSE_KEY" ]; then
     echo "License key found, registering license..."
     warp-cli --accept-tos set-license "$WARP_LICENSE_KEY" && echo "Warp license registered!"
 fi
- # Assuming $WARP_LICENSE_KEY contains the value "true" or "false"
-if [ "$WARP_PROXY" == "TRUE" ]; then
+# Assuming $WARP_LICENSE_KEY contains the value "true" or "false"
+if [ "$WARP_PROXY" = "TRUE" ]; then
     echo "WARP_PROXY is true."
     warp-cli --accept-tos set-mode proxy
 else
