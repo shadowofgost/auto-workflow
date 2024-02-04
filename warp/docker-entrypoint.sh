@@ -27,11 +27,18 @@ fi
 # Assuming $WARP_LICENSE_KEY contains the value "true" or "false"
 if [ "$WARP_PROXY" = "TRUE" ]; then
     echo "WARP_PROXY is true."
-    warp-cli --accept-tos set-mode proxy
+    warp-cli set-mode proxy
+    warp-cli set-proxy-port "$WARP_PORT"
 else
     echo "WARP_PROXY is false."
 fi
 # connect to the warp server
-warp-cli --accept-tos connect
+warp-cli connect
 
-warp-cli --accept-tos enable-always-on
+warp-cli enable-always-on
+while true;
+    do
+        warp-cli status
+        sleep 600;
+    done
+exec "$@"
