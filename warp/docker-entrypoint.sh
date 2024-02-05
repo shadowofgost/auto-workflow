@@ -24,6 +24,10 @@ if [ -n "$WARP_LICENSE_KEY" ]; then
     echo "License key found, registering license..."
     warp-cli --accept-tos set-license "$WARP_LICENSE_KEY" && echo "Warp license registered!"
 fi
+if [ -n "$WARP_CUSTOM_ENDPOINT" ]; then
+    echo "custom-endpoint key found, registering custom-endpoint..."
+    warp-cli set-custom-endpoint "$WARP_CUSTOM_ENDPOINT" && echo "Warp custom-endpoint registered!"
+fi
 # Assuming $WARP_LICENSE_KEY contains the value "true" or "false"
 if [ "$WARP_PROXY" = "TRUE" ]; then
     echo "WARP_PROXY is true."
@@ -36,9 +40,8 @@ fi
 warp-cli connect
 
 warp-cli enable-always-on
-while true;
-    do
-        warp-cli status
-        sleep 600;
-    done
+while true; do
+    warp-cli status
+    sleep 600
+done
 exec "$@"
