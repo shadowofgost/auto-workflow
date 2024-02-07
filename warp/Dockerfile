@@ -24,8 +24,5 @@ ENV WARP_SLEEP=2
 ENV WARP_PROXY=TRUE
 ENV WARP_PORT=40000
 
-HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
-  CMD curl -fsS "https://cloudflare.com/cdn-cgi/trace" | grep -qE "warp=(plus|on)" || exit 1
-
 ENTRYPOINT ["/docker-entrypoint.sh"]
 #CMD [ "/usr/bin/xray", "-config", "/etc/xray/config.json" ]
