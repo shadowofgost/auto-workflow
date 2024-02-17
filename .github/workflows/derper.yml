@@ -36,15 +36,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       # Runs a single command using the runners shell
-      - name: Build and push ip_derper Docker images to docker.io and ghcr.io
-        uses: docker/build-push-action@v5
-        with:
-          platforms: linux/amd64,linux/arm64
-          context: ./derper/ip
-          push: true
-          tags: |
-            ghcr.io/shadowofgost/derp:ip
-            shadowofgost/derper:ip
+      # - name: Build and push ip_derper Docker images to docker.io and ghcr.io
+      #  uses: docker/build-push-action@v5
+      #  with:
+      #    platforms: linux/amd64,linux/arm64
+      #    context: ./derper/ip
+      #    push: true
+      #    tags: |
+      #      ghcr.io/shadowofgost/derp:ip
+      #      shadowofgost/derper:ip
 
       - name: Build and push Docker derper images to docker.io and ghcr.io
         uses: docker/build-push-action@v5
