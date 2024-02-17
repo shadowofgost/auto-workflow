@@ -1,0 +1,64 @@
+name: gitpod
+
+on:
+  schedule:
+  - cron: "0 0 15 * *"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Pull Docker Image
+      run: docker pull gitpod/workspace-full:latest
+
+    - name: Save Docker Image as tar
+      run: docker save -o gitpod-workspace-full.tar gitpod/workspace-full:latest
+
+    - name: Compress with 7zip
+      run: 7z a gitpod-workspace-full.tar.7z gitpod-workspace-full.tar
+
+    - name: Upload Docker Image
+      uses: actions/upload-artifact@v2
+      with:
+        name: docker-image
+        path: gitpod-workspace-full.tar.7z
+
+    - name: Get Current Date
+      id: get_date
+      run: echo "::set-output name=date::$(date +'%Y.%-m.%-d')"
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_date.outputs.date }}
+        release_name: Release ${{ steps.get_date.outputs.date }}
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Asset
+      id: upload-release-asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./gitpod-workspace-full.tar.7z
+        asset_name: gitpod-workspace-full.tar.7z
+        asset_content_type: application/x-7z-compressed
