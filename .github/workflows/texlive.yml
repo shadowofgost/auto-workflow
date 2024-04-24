@@ -37,5 +37,5 @@ jobs:
           context: ./texlive
           push: true
           tags: |
-            ghcr.io/shadowofgost/texlive:latest
-            shadowofgost/texlive:latest
+            ghcr.io/shadowofgost/texlive-development:latest
+            shadowofgost/texlive-development:latest
