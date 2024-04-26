@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN  chmod +x /docker-entrypoint.sh
