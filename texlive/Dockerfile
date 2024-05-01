@@ -6,7 +6,7 @@ FROM mcr.microsoft.com/devcontainers/base:${VARIANT}
 
 # [Optional] Uncomment this section to install additional OS packages.
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
-    apt-get -y install --no-install-recommends texlive-xetex texlive-science texlive-lang-chinese texlive-lang-english texlive-bibtex-extra texlive-fonts-extra texlive-plain-generic texlive-latex-extra biber chktex latexmk ttf-mscorefonts-installer && \
+    apt-get -y install --no-install-recommends texlive-xetex texlive-science texlive-lang-chinese texlive-lang-english texlive-bibtex-extra texlive-fonts-extra texlive-plain-generic texlive-pstricks texlive-latex-extra biber chktex latexmk ttf-mscorefonts-installer && \
     sudo git clone https://github.com/Haixing-Hu/latex-chinese-fonts /usr/share/fonts/latex-chinese-fonts && \
     apt upgrade -y && \
     apt-get clean all && \
