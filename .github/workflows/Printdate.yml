@@ -13,3 +13,8 @@ jobs:
       - name: Print current datetime
         run: |
           echo "Current Datetime: ${{ github.event.head_commit.timestamp }}"
+
+      - name: Print formatted datetime
+        run: |
+          formatted_datetime=$(date -d "${{ github.event.head_commit.timestamp }}" +'%Y-%m-%d %H:%M:%S')
+          echo "Formatted Datetime: $formatted_datetime"
