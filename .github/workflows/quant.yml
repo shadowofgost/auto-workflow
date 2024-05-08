@@ -35,7 +35,7 @@ jobs:
       - name: Get formatted datetime
         id: datetime
         run: |
-          formatted_datetime=$(date -d "${{ github.event.head_commit.timestamp }}" +'%Y-%m-%d)
+          formatted_datetime=$(date -d "${{ github.event.head_commit.timestamp }}" +'%Y-%m-%d')
           echo "Formatted Datetime: $formatted_datetime"
 
       - name: Build and push quant Docker images to docker.io and ghcr.io
