@@ -46,6 +46,6 @@ jobs:
           push: true
           tags: |
             ghcr.io/shadowofgost/quant:latest
-            ghcr.io/shadowofgost/quant:${{steps.datetime.outputs.formatted_datetime}}
-            shadowofgost/quant:${{steps.datetime.outputs.formatted_datetime }}
+            ghcr.io/shadowofgost/quant:relaese-${{steps.datetime.outputs.formatted_datetime}}
+            shadowofgost/quant:release-${{steps.datetime.outputs.formatted_datetime}}
             shadowofgost/quant:latest
