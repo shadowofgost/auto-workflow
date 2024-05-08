@@ -43,17 +43,17 @@ jobs:
           echo "::set-output name=formatted_datetime::$formatted_datetime"
 
       # Runs a single command using the runners shell
-      # - name: Build and push ip_derper Docker images to docker.io and ghcr.io
-      #  uses: docker/build-push-action@v5
-      #  with:
-      #    platforms: linux/amd64,linux/arm64
-      #    context: ./derper/ip
-      #    push: true
-      #    tags: |
-      #      ghcr.io/shadowofgost/derp:ip
-      #      ghcr.io/shadowofgost/derp:ip-${{steps.datetime.outputs.formatted_datetime}}
-      #      shadowofgost/derper:ip
-      #     shadowofgost/derper:ip-${{steps.datetime.outputs.formatted_datetime}}
+      - name: Build and push ip_derper Docker images to docker.io and ghcr.io
+        uses: docker/build-push-action@v5
+        with:
+          platforms: linux/amd64,linux/arm64
+          context: ./derper/ip
+          push: true
+          tags: |
+            ghcr.io/shadowofgost/derp:ip
+            ghcr.io/shadowofgost/derp:ip-${{steps.datetime.outputs.formatted_datetime}}
+            shadowofgost/derper:ip
+            shadowofgost/derper:ip-${{steps.datetime.outputs.formatted_datetime}}
 
       - name: Build and push Docker derper images to docker.io and ghcr.io
         uses: docker/build-push-action@v5
