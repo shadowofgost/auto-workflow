@@ -35,6 +35,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get formatted datetime
+        id: datetime
+        run: |
+          formatted_datetime=$(date -d "${{ github.event.head_commit.timestamp }}" +'%Y-%m-%d')
+          echo "::set-output name=formatted_datetime::$formatted_datetime"
+
       # Runs a single command using the runners shell
       # - name: Build and push ip_derper Docker images to docker.io and ghcr.io
       #  uses: docker/build-push-action@v5
@@ -44,7 +51,9 @@ jobs:
       #    push: true
       #    tags: |
       #      ghcr.io/shadowofgost/derp:ip
+      #      ghcr.io/shadowofgost/derp:ip-${{steps.datetime.outputs.formatted_datetime}}
       #      shadowofgost/derper:ip
+      #     shadowofgost/derper:ip-${{steps.datetime.outputs.formatted_datetime}}
 
       - name: Build and push Docker derper images to docker.io and ghcr.io
         uses: docker/build-push-action@v5
@@ -54,4 +63,6 @@ jobs:
           push: true
           tags: |
             ghcr.io/shadowofgost/derp:main
+            ghcr.io/shadowofgost/derp:main-${{steps.datetime.outputs.formatted_datetime}}
             shadowofgost/derper:main
+            shadowofgost/derper:main-${{steps.datetime.outputs.formatted_datetime}}

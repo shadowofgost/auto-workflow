@@ -38,7 +38,6 @@ jobs:
           formatted_datetime=$(date -d "${{ github.event.head_commit.timestamp }}" +'%Y-%m-%d')
           echo "::set-output name=formatted_datetime::$formatted_datetime"
 
-
       - name: Build and push quant Docker images to docker.io and ghcr.io
         uses: docker/build-push-action@v5
         with:
