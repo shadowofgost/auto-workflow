@@ -9,7 +9,7 @@ FROM mcr.microsoft.com/devcontainers/anaconda:latest
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH \
-    RUST_VERSION=1.77.2
+    RUST_VERSION=1.78.0
 
 RUN set -eux; \
     export DEBIAN_FRONTEND=noninteractive && \
