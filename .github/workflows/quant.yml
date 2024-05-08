@@ -36,7 +36,8 @@ jobs:
         id: datetime
         run: |
           formatted_datetime=$(date -d "${{ github.event.head_commit.timestamp }}" +'%Y-%m-%d')
-          echo "Formatted Datetime: $formatted_datetime"
+          echo "::set-output name=formatted_datetime::$formatted_datetime"
+
 
       - name: Build and push quant Docker images to docker.io and ghcr.io
         uses: docker/build-push-action@v5
@@ -46,6 +47,6 @@ jobs:
           push: true
           tags: |
             ghcr.io/shadowofgost/quant:latest
-            ghcr.io/shadowofgost/quant:relaese-${{steps.datetime.outputs.formatted_datetime}}
-            shadowofgost/quant:release-${{steps.datetime.outputs.formatted_datetime}}
+            ghcr.io/shadowofgost/quant:${{steps.datetime.outputs.formatted_datetime}}
             shadowofgost/quant:latest
+            shadowofgost/quant:${{steps.datetime.outputs.formatted_datetime}}
