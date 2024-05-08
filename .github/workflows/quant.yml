@@ -32,6 +32,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Get formatted datetime
+        id: datetime
+        run: |
+          formatted_datetime=$(date -d "${{ github.event.head_commit.timestamp }}" +'%Y-%m-%d)
+          echo "Formatted Datetime: $formatted_datetime"
+
       - name: Build and push quant Docker images to docker.io and ghcr.io
         uses: docker/build-push-action@v5
         with:
@@ -40,4 +46,6 @@ jobs:
           push: true
           tags: |
             ghcr.io/shadowofgost/quant:latest
+            ghcr.io/shadowofgost/quant:${{steps.datetime.outputs.formatted_datetime}}
+            shadowofgost/quant:${{steps.datetime.outputs.formatted_datetime }}
             shadowofgost/quant:latest
