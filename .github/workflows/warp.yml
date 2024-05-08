@@ -32,6 +32,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       # Runs a single command using the runners shell
+
+      - name: Get formatted datetime
+        id: datetime
+        run: |
+          formatted_datetime=$(date -d "${{ github.event.head_commit.timestamp }}" +'%Y-%m-%d')
+          echo "::set-output name=formatted_datetime::$formatted_datetime"
+
       - name: Build and push warp Docker images to docker.io and ghcr.io
         uses: docker/build-push-action@v5
         with:
@@ -40,4 +47,6 @@ jobs:
           push: true
           tags: |
             ghcr.io/shadowofgost/warp:latest
+            ghcr.io/shadowofgost/warp:${{steps.datetime.outputs.formatted_datetime}}
             shadowofgost/warp:latest
+            shadowofgost/warp:${{steps.datetime.outputs.formatted_datetime}}
