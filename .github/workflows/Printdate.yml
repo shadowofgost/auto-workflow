@@ -1,0 +1,15 @@
+name: Print Current Datetime
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  print_datetime:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Print current datetime
+        run: |
+          echo "Current Datetime: ${{ github.event.head_commit.timestamp }}"
