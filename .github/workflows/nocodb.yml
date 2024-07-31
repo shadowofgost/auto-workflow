@@ -1,0 +1,46 @@
+name: Publish Docker Image
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * Mon"
+  pull_request:
+    branches: [ main ]
+  pull_request_target:
+    types: [assigned, opened, synchronize, reopened]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Login to DockerHub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Login to ghcr.io
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Pull Docker image
+      run: docker pull nocodb/nocodb:latest
+
+    - name: Tag image for GHCR
+      run: docker tag nocodb/nocodb:latest ghcr.io/shadowofgost/nocodb:latest
+
+    - name: Tag image for Docker Hub
+      run: docker tag nocodb/nocodb:latest shadowofgost/nocodb:latest
+
+    - name: Push image to GHCR
+      run: docker push ghcr.io/shadowofgost/nocodb:latest
+
+    - name: Push image to Docker Hub
+      run: docker push shadowofgost/nocodb:latest
