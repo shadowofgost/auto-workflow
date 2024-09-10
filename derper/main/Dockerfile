@@ -15,14 +15,14 @@ RUN apk update && \
     rm -rf /var/cache/apk/* \
     mkdir /app/certs
 
-ENV DERP_DOMAIN your-hostname.com
-ENV DERP_CERT_MODE letsencrypt
-ENV DERP_CERT_DIR /app/certs
-ENV DERP_ADDR :443
-ENV DERP_STUN true
-ENV DERP_STUN_PORT 3478
-ENV DERP_HTTP_PORT 80
-ENV DERP_VERIFY_CLIENTS false
+ENV DERP_DOMAIN=your-hostname.com
+ENV DERP_CERT_MODE=letsencrypt
+ENV DERP_CERT_DIR=/app/certs
+ENV DERP_ADDR=:443
+ENV DERP_STUN=true
+ENV DERP_STUN_PORT=3478
+ENV DERP_HTTP_PORT=80
+ENV DERP_VERIFY_CLIENTS=false
 
 COPY --from=builder /go/bin/derper .
 
