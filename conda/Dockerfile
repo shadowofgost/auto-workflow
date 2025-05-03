@@ -7,7 +7,7 @@ RUN . /etc/os-release && if [ "${VERSION_CODENAME}" != "bookworm" ]; then exit 1
 COPY ./apply_security_patches.sh /tmp/apply_security_patches.sh
 RUN chmod +x /tmp/apply_security_patches.sh
 RUN /tmp/apply_security_patches.sh
-RUN conda install statsmodels matplotlib seaborn pyarrow jupyter scikit-learn numba xgboost pytorch torchvision torchaudio pytorch-cuda=12.4 cuda-cudart cuda-version=12 rapids cudf cuml cugraph -c rapidsai -c pytorch -c nvidia -c conda-forge --override-channels --strict-channel-priority --yes
+RUN conda install statsmodels matplotlib seaborn pyarrow jupyter scikit-learn numba xgboost pytorch torchvision torchaudio pytorch-cuda=12.4 cuda-cudart cuda-version=12 rapids cudf cuml cugraph -c rapidsai -c pytorch -c nvidia -c conda-forge  --yes
 
 RUN conda clean -tipy && rm -rf /opt/conda/pkgs/*
 
