@@ -8,7 +8,9 @@ COPY ./apply_security_patches.sh /tmp/apply_security_patches.sh
 RUN chmod +x /tmp/apply_security_patches.sh
 RUN /tmp/apply_security_patches.sh
 RUN conda install pytorch torchvision torchaudio pytorch-cuda=12.4 -c pytorch -c nvidia --yes
+RUN conda clean -tipy && rm -rf /opt/conda/pkgs/*
 RUN conda install cuda-cudart cuda-version=12 rapids cudf cuml cugraph -c rapidsai -c nvidia -c conda-forge  --yes
+RUN conda clean -tipy && rm -rf /opt/conda/pkgs/*
 RUN conda install statsmodels matplotlib seaborn pyarrow jupyter scikit-learn numba xgboost --yes
 RUN conda update --all --yes
 
