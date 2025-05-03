@@ -1,14 +1,3 @@
-/*
- * @Author           : Albert Wang
- * @Time             : 2025-05-03 12:49:15
- * @Description      :
- * @Email            : shadowofgost@outlook.com
- * @FilePath         : /auto-workflow/conda/Dockerfile
- * @LastTime         : 2025-05-03 12:57:26
- * @LastAuthor       : Albert Wang
- * @Software         : Vscode
- *  Copyright Notice : Copyright (c) 2025 Albert Wang 王子睿, All Rights Reserved.
- */
 FROM continuumio/miniconda3 as upstream
 
 # Verify OS version is expected one

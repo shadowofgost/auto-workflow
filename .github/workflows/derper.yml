@@ -3,7 +3,7 @@ name: derper build
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * Mon"
+    - cron: "0 0 15 * *"
   pull_request:
     branches: [ main ]
   pull_request_target:
