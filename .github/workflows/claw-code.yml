@@ -66,9 +66,6 @@ jobs:
           - os: ubuntu-24.04-arm
             asset_suffix: linux-aarch64
             archive_ext: tar.gz
-          - os: macos-13
-            asset_suffix: macos-x86_64
-            archive_ext: tar.gz
           - os: macos-latest
             asset_suffix: macos-aarch64
             archive_ext: tar.gz
