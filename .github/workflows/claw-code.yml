@@ -1,0 +1,204 @@
+name: claw-code release
+
+on:
+  schedule:
+    # 04:00 Asia/Shanghai every day.
+    - cron: "0 20 * * *"
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: "ultraworkers/claw-code ref to build"
+        required: false
+        default: "main"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: claw-code-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPO: https://github.com/ultraworkers/claw-code.git
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    outputs:
+      build_time: ${{ steps.meta.outputs.build_time }}
+      source_ref: ${{ steps.meta.outputs.source_ref }}
+      tag: ${{ steps.meta.outputs.tag }}
+      upstream_sha: ${{ steps.meta.outputs.upstream_sha }}
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Resolve upstream commit and release tag
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          source_ref="${{ github.event.inputs.upstream_ref || 'main' }}"
+          upstream_sha="$(git ls-remote "$UPSTREAM_REPO" "$source_ref" | awk '{print $1; exit}')"
+          if [ -z "$upstream_sha" ]; then
+            upstream_sha="$source_ref"
+          fi
+
+          version="$(TZ=Asia/Shanghai date +'%Y.%m.%d-%H%M')"
+          build_time="$(TZ=Asia/Shanghai date +'%Y-%m-%d %H:%M:%S %Z')"
+
+          echo "source_ref=$source_ref" >> "$GITHUB_OUTPUT"
+          echo "upstream_sha=$upstream_sha" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=claw-code-$version" >> "$GITHUB_OUTPUT"
+          echo "build_time=$build_time" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: metadata
+    name: build ${{ matrix.asset_suffix }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            asset_suffix: linux-x86_64
+            archive_ext: tar.gz
+          - os: ubuntu-24.04-arm
+            asset_suffix: linux-aarch64
+            archive_ext: tar.gz
+          - os: macos-13
+            asset_suffix: macos-x86_64
+            archive_ext: tar.gz
+          - os: macos-latest
+            asset_suffix: macos-aarch64
+            archive_ext: tar.gz
+          - os: windows-latest
+            asset_suffix: windows-x86_64
+            archive_ext: zip
+          - os: windows-11-arm
+            asset_suffix: windows-aarch64
+            archive_ext: zip
+    steps:
+      - name: Fetch claw-code
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init claw-code
+          git -C claw-code remote add origin "$UPSTREAM_REPO"
+          git -C claw-code fetch --depth=1 origin "${{ needs.metadata.outputs.source_ref }}"
+          git -C claw-code checkout --detach "${{ needs.metadata.outputs.upstream_sha }}"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/git
+            ~/.cargo/registry
+            claw-code/rust/target
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('claw-code/rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
+
+      - name: Build release binary
+        shell: bash
+        working-directory: claw-code/rust
+        run: cargo build --workspace --release --locked
+
+      - name: Smoke test binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            ./claw-code/rust/target/release/claw.exe --help
+          else
+            ./claw-code/rust/target/release/claw --help
+          fi
+
+      - name: Package Unix artifact
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset="claw-code-${{ needs.metadata.outputs.version }}-${{ matrix.asset_suffix }}"
+
+          mkdir -p package "$asset"
+          cp claw-code/rust/target/release/claw "$asset/claw"
+          cp claw-code/README.md "$asset/README.md"
+          [ -f claw-code/LICENSE ] && cp claw-code/LICENSE "$asset/LICENSE"
+          printf '%s\n' "${{ needs.metadata.outputs.upstream_sha }}" > "$asset/UPSTREAM_COMMIT"
+          chmod +x "$asset/claw"
+
+          tar -czf "package/$asset.tar.gz" "$asset"
+          (cd package && shasum -a 256 "$asset.tar.gz" > "$asset.tar.gz.sha256")
+
+      - name: Package Windows artifact
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $asset = "claw-code-${{ needs.metadata.outputs.version }}-${{ matrix.asset_suffix }}"
+
+          New-Item -ItemType Directory -Force package, $asset | Out-Null
+          Copy-Item claw-code\rust\target\release\claw.exe "$asset\claw.exe"
+          Copy-Item claw-code\README.md "$asset\README.md"
+          if (Test-Path claw-code\LICENSE) {
+            Copy-Item claw-code\LICENSE "$asset\LICENSE"
+          }
+          "${{ needs.metadata.outputs.upstream_sha }}" | Out-File "$asset\UPSTREAM_COMMIT" -Encoding ascii
+
+          Compress-Archive -Path "$asset\*" -DestinationPath "package\$asset.zip" -Force
+          $hash = (Get-FileHash "package\$asset.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $asset.zip" | Out-File "package\$asset.zip.sha256" -Encoding ascii
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: claw-code-${{ matrix.asset_suffix }}
+          path: package/*
+          if-no-files-found: error
+
+  release:
+    needs:
+      - metadata
+      - build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.metadata.outputs.tag }}
+          TITLE: Claw Code ${{ needs.metadata.outputs.version }}
+          UPSTREAM_SHA: ${{ needs.metadata.outputs.upstream_sha }}
+          BUILD_TIME: ${{ needs.metadata.outputs.build_time }}
+          SOURCE_REF: ${{ needs.metadata.outputs.source_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          notes="$(mktemp)"
+          {
+            echo "Automated daily build from ultraworkers/claw-code."
+            echo
+            echo "- Source ref: $SOURCE_REF"
+            echo "- Upstream commit: $UPSTREAM_SHA"
+            echo "- Build time: $BUILD_TIME"
+            echo
+            echo "Assets include Linux, macOS, and Windows builds plus SHA256 checksums."
+          } > "$notes"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* \
+              --title "$TITLE" \
+              --notes-file "$notes" \
+              --latest
+          fi
