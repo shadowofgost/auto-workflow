@@ -191,10 +191,11 @@ jobs:
             echo "Assets include Linux, macOS, and Windows builds plus SHA256 checksums."
           } > "$notes"
 
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/* --clobber
+          if gh release view "$TAG" -R "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* -R "${{ github.repository }}" --clobber
           else
             gh release create "$TAG" dist/* \
+              -R "${{ github.repository }}" \
               --title "$TITLE" \
               --notes-file "$notes" \
               --latest
