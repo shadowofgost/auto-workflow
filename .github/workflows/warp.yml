@@ -9,6 +9,10 @@ on:
         description: "Also publish latest (leave false for an Azure candidate)"
         type: boolean
         default: false
+      promote_sha:
+        description: "Promote an already tested full commit SHA without rebuilding (normally empty)"
+        type: string
+        default: ""
   pull_request:
     paths:
       - "warp/**"
@@ -24,6 +28,7 @@ concurrency:
 
 jobs:
   version:
+    if: inputs.promote_sha == ''
     runs-on: ubuntu-24.04
     outputs:
       package: ${{ steps.version.outputs.package }}
@@ -32,7 +37,9 @@ jobs:
       - uses: actions/checkout@v6
       - id: version
         run: |
-          echo "package=$(python3 warp/resolve-version.py)" >> "$GITHUB_OUTPUT"
+          package=$(python3 warp/resolve-version.py)
+          test -n "$package"
+          echo "package=$package" >> "$GITHUB_OUTPUT"
           echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
 
   build:
@@ -142,4 +149,36 @@ jobs:
             docker buildx imagetools inspect --raw "$repo:sha-$GITHUB_SHA" > manifest.json
             python3 -c 'import json; p={x["platform"]["architecture"] for x in json.load(open("manifest.json"))["manifests"] if x["platform"]["os"]=="linux"}; assert p == {"amd64", "arm64"}, p'
             echo "Published $repo:sha-$GITHUB_SHA (amd64 + arm64)" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+  promote:
+    if: github.event_name == 'workflow_dispatch' && inputs.promote_sha != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote the existing multi-architecture manifest without rebuilding
+        env:
+          SOURCE_SHA: ${{ inputs.promote_sha }}
+        run: |
+          [[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          for repo in shadowofgost/warp ghcr.io/shadowofgost/warp; do
+            source="$repo:sha-$SOURCE_SHA"
+            docker buildx imagetools inspect --raw "$source" > manifest.json
+            python3 -c 'import json; p={x["platform"]["architecture"] for x in json.load(open("manifest.json"))["manifests"] if x["platform"]["os"]=="linux"}; assert p == {"amd64", "arm64"}, p'
+            digest=$(docker buildx imagetools inspect "$source" --format '{{json .Manifest}}' | jq -r .digest)
+            test "$digest" != null
+            docker buildx imagetools create --tag "$repo:latest" "$repo@$digest"
+            echo "Promoted $repo@$digest to latest" >> "$GITHUB_STEP_SUMMARY"
           done
