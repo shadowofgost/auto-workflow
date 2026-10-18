@@ -2,51 +2,183 @@ name: warp build
 
 on:
   schedule:
-  - cron: "0 0 15 * *"
+    - cron: "0 0 15 * *"
   workflow_dispatch:
+    inputs:
+      publish_latest:
+        description: "Also publish latest (leave false for an Azure candidate)"
+        type: boolean
+        default: false
+      promote_sha:
+        description: "Promote an already tested full commit SHA without rebuilding (normally empty)"
+        type: string
+        default: ""
+  pull_request:
+    paths:
+      - "warp/**"
+      - ".github/workflows/warp.yml"
+      - ".gitattributes"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: warp-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
+  version:
+    if: inputs.promote_sha == ''
+    runs-on: ubuntu-24.04
+    outputs:
+      package: ${{ steps.version.outputs.package }}
+      date: ${{ steps.version.outputs.date }}
     steps:
       - uses: actions/checkout@v6
+      - id: version
+        run: |
+          package=$(python3 warp/resolve-version.py)
+          test -n "$package"
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Test startup, shutdown and logging
+        run: |
+          python3 -m unittest discover -s warp/tests -v
+          sh -n warp/docker-entrypoint.sh warp/healthcheck.sh
+      - uses: docker/setup-buildx-action@v4
+      - name: Build once on the native architecture
+        uses: docker/build-push-action@v7
         with:
-          submodules: true
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v4
+          context: ./warp
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          provenance: false
+          tags: warp-ci:${{ matrix.arch }}
+          build-args: |
+            WARP_VERSION=${{ needs.version.outputs.package }}
+            COMMIT_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=warp-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=warp-${{ matrix.arch }}
+      - name: Native binary and installed package checks
+        env:
+          ARCH: ${{ matrix.arch }}
+          PACKAGE: ${{ needs.version.outputs.package }}
+        run: |
+          docker run --rm --entrypoint warp-cli "warp-ci:$ARCH" --version
+          docker run --rm --entrypoint sh "warp-ci:$ARCH" -ec 'test "$(cat /etc/warp-package-architecture)" = "$1"; test "$(cat /etc/warp-package-version)" = "$2"' -- "$ARCH" "$PACKAGE"
+          docker run --rm "warp-ci:$ARCH" python3 -c 'print("entrypoint command override works")'
+      - name: Check bounded Docker log rotation
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          docker run --name warp-log-check --log-driver=json-file --log-opt max-size=10k --log-opt max-file=3 --entrypoint python3 "warp-ci:$ARCH" -c 'for n in range(2000): print("INFO rotation-check " + "x" * 200)' > /dev/null
+          path=$(docker inspect --format '{{.LogPath}}' warp-log-check)
+          sudo python3 - "$path" <<'PY'
+          import glob, os, sys
+          files = glob.glob(sys.argv[1] + '*')
+          assert 2 <= len(files) <= 3, files
+          assert all(os.path.getsize(path) <= 11000 for path in files)
+          PY
+          docker rm warp-log-check
+      - uses: docker/login-action@v4
+        if: github.event_name != 'pull_request'
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Login to ghcr.io
-        uses: docker/login-action@v4
+      - uses: docker/login-action@v4
+        if: github.event_name != 'pull_request'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      # Runs a single command using the runners shell
-
-      - name: Get formatted datetime
-        id: datetime
+      - name: Push the tested image
+        if: github.event_name != 'pull_request'
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
-          formatted_datetime=$(date -d "${{ github.event.head_commit.timestamp }}" +'%Y-%m-%d')
-          echo "::set-output name=formatted_datetime::$formatted_datetime"
+          for repo in shadowofgost/warp ghcr.io/shadowofgost/warp; do
+            tag="$repo:sha-${GITHUB_SHA}-$ARCH"
+            docker tag "warp-ci:$ARCH" "$tag"
+            docker push "$tag"
+          done
 
-      - name: Build and push warp Docker images to docker.io and ghcr.io
-        uses: docker/build-push-action@v7
+  manifest:
+    if: github.event_name != 'pull_request'
+    needs: [version, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
-          platforms: linux/amd64
-          context: ./warp
-          push: true
-          tags: |
-            ghcr.io/shadowofgost/warp:latest
-            ghcr.io/shadowofgost/warp:${{steps.datetime.outputs.formatted_datetime}}
-            shadowofgost/warp:latest
-            shadowofgost/warp:${{steps.datetime.outputs.formatted_datetime}}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Assemble and verify both registry manifests
+        env:
+          DATE: ${{ needs.version.outputs.date }}
+          PUBLISH_LATEST: ${{ github.event_name == 'schedule' || inputs.publish_latest }}
+        run: |
+          for repo in shadowofgost/warp ghcr.io/shadowofgost/warp; do
+            tags=(--tag "$repo:sha-$GITHUB_SHA" --tag "$repo:$DATE")
+            if [ "$PUBLISH_LATEST" = true ]; then tags+=(--tag "$repo:latest"); fi
+            docker buildx imagetools create "${tags[@]}" "$repo:sha-$GITHUB_SHA-amd64" "$repo:sha-$GITHUB_SHA-arm64"
+            docker buildx imagetools inspect --raw "$repo:sha-$GITHUB_SHA" > manifest.json
+            python3 -c 'import json; p={x["platform"]["architecture"] for x in json.load(open("manifest.json"))["manifests"] if x["platform"]["os"]=="linux"}; assert p == {"amd64", "arm64"}, p'
+            echo "Published $repo:sha-$GITHUB_SHA (amd64 + arm64)" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+  promote:
+    if: github.event_name == 'workflow_dispatch' && inputs.promote_sha != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote the existing multi-architecture manifest without rebuilding
+        env:
+          SOURCE_SHA: ${{ inputs.promote_sha }}
+        run: |
+          [[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          for repo in shadowofgost/warp ghcr.io/shadowofgost/warp; do
+            source="$repo:sha-$SOURCE_SHA"
+            docker buildx imagetools inspect --raw "$source" > manifest.json
+            python3 -c 'import json; p={x["platform"]["architecture"] for x in json.load(open("manifest.json"))["manifests"] if x["platform"]["os"]=="linux"}; assert p == {"amd64", "arm64"}, p'
+            digest=$(docker buildx imagetools inspect "$source" --format '{{json .Manifest}}' | jq -r .digest)
+            test "$digest" != null
+            docker buildx imagetools create --tag "$repo:latest" "$repo@$digest"
+            echo "Promoted $repo@$digest to latest" >> "$GITHUB_STEP_SUMMARY"
+          done
