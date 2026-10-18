@@ -50,6 +50,16 @@ class ComparisonTests(unittest.TestCase):
         self.assertNotIn(self.subject.secret, result)
         self.assertIn("[redacted]", result)
 
+    def test_failure_diagnostics_are_allowlisted_and_redacted(self):
+        self.subject.secret = "not-a-real-license"
+        self.subject.inspect = Mock(return_value={"State": {"Pid": 0}, "Image": "test", "RestartCount": 0})
+        self.subject.command = Mock(return_value=subprocess.CompletedProcess([], 0,
+            "INFO noisy payload\nERROR WARP command failed: not-a-real-license\n", ""))
+        self.subject.event = Mock()
+        self.subject.diagnostics()
+        record = self.subject.event.call_args.kwargs
+        self.assertEqual(record["lines"], ["ERROR WARP command failed: [redacted]"])
+
 
 if __name__ == "__main__":
     unittest.main()

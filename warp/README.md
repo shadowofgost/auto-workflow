@@ -5,6 +5,14 @@ networking, applications on the host (including Xray using host networking)
 can connect to `socks5h://127.0.0.1:40000`. A bridge container's own localhost
 does not point at that listener. This image does not contain GOST.
 
+**Azure acceptance (2026-10-18): not passed under the supplied permissions.**
+Both this candidate and the upstream image (WARP 2026.8.2110.0) failed to
+install fwmark policy rules without network administration capability, even
+in proxy mode. The original deployment was restored; latest was not promoted.
+See [the comparison report](reports/azure-comparison-20261018.md). Host
+networking alone is not evidence that this client version will work with the
+existing permissions. No broader capability or host-route change was made.
+
 ## Configuration
 
 | Variable | Default | Behavior |
@@ -99,3 +107,7 @@ When `--production-image` is supplied, the tool waits for a root-created
 the promoted tag and verifies that its image ID matches the tested candidate
 before deployment. Failures restore the original container and cold data;
 the old deployment may already have been unhealthy before the test.
+
+Readiness failures capture an allowlisted startup diagnostic before rollback.
+`azure-diagnostics.py` can additionally capture the same type of redacted
+evidence during a running trial; its output appends to that trial's JSONL.

@@ -89,7 +89,27 @@ class Comparison:
                 return True
             time.sleep(2)
         self.event("readiness_failed", last_trace=latest, state=self.inspect()["State"]["Status"])
+        self.diagnostics()
         return False
+
+    def diagnostics(self):
+        container = self.inspect()
+        result = self.command("docker", "logs", "--tail", "400", "warp", check=False, timeout=20)
+        lines = []
+        for raw in (result.stdout + result.stderr).splitlines():
+            line = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", raw)
+            if re.search(r"fwmark.*Operation not permitted|mknod:|INFO Configured mode|ERROR WARP command", line):
+                lines.append(self.safe(line))
+        pid = container["State"]["Pid"]
+        version = "not running"
+        cap_net_admin = None
+        if pid:
+            version = self.command("chroot", f"/proc/{pid}/root", "/usr/bin/warp-cli", "--version", check=False, timeout=10).stdout.strip()
+            status = Path(f"/proc/{pid}/status").read_text()
+            match = re.search(r"^CapEff:\s*([0-9a-f]+)", status, re.MULTILINE)
+            cap_net_admin = bool(int(match.group(1), 16) & (1 << 12)) if match else None
+        self.event("diagnostics", image=container["Image"], version=version,
+                   cap_net_admin=cap_net_admin, restarts=container["RestartCount"], lines=lines[-12:])
 
     def registration_identity(self):
         data = json.loads((DATA / "reg.json").read_text())

@@ -1,5 +1,11 @@
 # Azure WARP 镜像对比检验报告
 
+本文件是首次候选 `6faebbc` 的中断记录，不是最终对比结论。实机日志出现
+`ERROR WARP command failed: debug extra: Error: Extra logging has not yet been started.`。
+首版将“额外日志本来就未启用”误判为启动失败；停止该轮测试并恢复了原容器。
+修复提交 `3233e6a` 对这一已知状态做幂等处理，增加回归测试，重新通过原生双架构 CI。
+最终完整对比和恢复核验见 [最终报告](azure-comparison-20261018.md)。
+
 采集时间：2026-10-18T23:48:24+08:00（Asia/Shanghai）。
 原生双架构构建与验证：[GitHub Actions](https://github.com/shadowofgost/auto-workflow/actions/runs/39140362915)。
 
