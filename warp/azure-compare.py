@@ -84,7 +84,8 @@ class Comparison:
             state = self.inspect()["State"]
             latest = self.curl(max_time=4)
             if state.get("Health", {}).get("Status") == "healthy" and latest["ok"]:
-                self.event("ready", seconds=round(time.monotonic() - start, 3), trace=latest)
+                self.event("ready", seconds=round(time.monotonic() - start, 3), trace=latest,
+                           auto_restarts=self.inspect()["RestartCount"])
                 return True
             time.sleep(2)
         self.event("readiness_failed", last_trace=latest, state=self.inspect()["State"]["Status"])
@@ -201,7 +202,7 @@ class Comparison:
             return False
         self.runtime_info()
         identity = self.registration_identity()
-        passed = True
+        passed = self.inspect()["RestartCount"] == 0
         for index in range(20):
             result = self.curl()
             passed = passed and result["ok"]
@@ -216,7 +217,7 @@ class Comparison:
                 self.command("docker", "restart", "--time", "20", "warp", timeout=45)
                 ready = self.wait_healthy()
                 same_identity = self.registration_identity() == identity
-                passed = passed and ready and same_identity
+                passed = passed and ready and same_identity and self.inspect()["RestartCount"] == 0
                 self.event("restart", index=index, ready=ready, identity_preserved=same_identity)
             self.command("docker", "stop", "--time", "20", "warp", timeout=45)
             negative = self.curl(max_time=4)
