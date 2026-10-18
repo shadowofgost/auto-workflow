@@ -74,6 +74,11 @@ class SupervisorTests(unittest.TestCase):
         with patch.object(module.subprocess, "run", side_effect=subprocess.TimeoutExpired([], 8)):
             self.assertIsNone(self.supervisor().cli("status", check=False))
 
+    def test_stopping_already_disabled_extra_logging_is_idempotent(self):
+        result = subprocess.CompletedProcess([], 1, "Error: Extra logging has not yet been started.")
+        with patch.object(module.subprocess, "run", return_value=result):
+            self.assertIsNotNone(self.supervisor().cli("debug", "extra", "stop", allow_errors=("Extra logging has not yet been started",)))
+
     def test_readiness_retries(self):
         subject = self.supervisor()
         subject.daemon = Mock()

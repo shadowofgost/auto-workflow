@@ -48,7 +48,7 @@ class Supervisor:
         timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
         print(f"{timestamp} {level} {self.redact(message)}", flush=True)
 
-    def cli(self, *args, check=True):
+    def cli(self, *args, check=True, allow_errors=()):
         try:
             result = subprocess.run(
                 ["warp-cli", "--accept-tos", "--no-ansi", *args], env=self.env,
@@ -58,9 +58,10 @@ class Supervisor:
             if not check:
                 return None
             raise RuntimeError(f"WARP command timed out: {' '.join(args[:2])}") from None
-        if check and result.returncode:
+        allowed = any(message in result.stdout for message in allow_errors)
+        if check and result.returncode and not allowed:
             raise RuntimeError(self.redact(f"WARP command failed: {' '.join(args[:2])}: {result.stdout.strip()}"))
-        return result if result.returncode == 0 else None
+        return result if result.returncode == 0 or allowed else None
 
     def daemon_logs(self):
         keep = True
@@ -111,7 +112,7 @@ class Supervisor:
             self.cli("proxy", "port", str(self.port))
         endpoint = self.env.get("WARP_CUSTOM_ENDPOINT", "")
         self.cli("tunnel", "endpoint", "set", endpoint) if endpoint else self.cli("tunnel", "endpoint", "reset")
-        self.cli("debug", "extra", "stop")
+        self.cli("debug", "extra", "stop", allow_errors=("Extra logging has not yet been started",))
         self.cli("debug", "qlog", "enable" if self.qlog else "disable")
         self.cli("connect")
         self.log("INFO", f"Configured mode={'proxy' if self.proxy else 'warp'} port={self.port} qlog={self.qlog}")
