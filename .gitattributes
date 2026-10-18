@@ -1,0 +1,4 @@
+warp/*.sh text eol=lf
+warp/*.py text eol=lf
+warp/tests/*.py text eol=lf
+.github/workflows/warp.yml text eol=lf
