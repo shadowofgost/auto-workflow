@@ -58,12 +58,21 @@ The container accepts command overrides for diagnostics, for example
 
 ## Native amd64 and arm64 release
 
-The `warp build` workflow resolves a common package version from the signed
-APT repository metadata's architecture indexes; installation itself uses
-APT's signature validation. `WARP_VERSION` pins the actual package installed.
-Both architectures build and execute on native GitHub runners. Unit tests,
-CLI/package checks and Docker log rotation must pass before publishing the
-combined manifests to Docker Hub and GHCR.
+The `warp build` workflow builds and executes both architectures on native
+GitHub runners. Each build installs the current `cloudflare-warp` package
+directly from Cloudflare's APT repository using APT's signature validation,
+without a separate version resolver or version pin. Builds pull the base
+image and run without layer caching so APT package installation is refreshed.
+The Dockerfile checks that the base distribution is Ubuntu and selects its
+`UBUNTU_CODENAME` suite (`resolute` for Ubuntu 26.04), following the official
+[Ubuntu installation instructions](https://pkg.cloudflareclient.com/#ubuntu).
+The APT `deb` format is used by Ubuntu as well as Debian; the suite selects
+the Ubuntu package, not a Debian release such as `bookworm` or `trixie`.
+The selected distribution, suite and repository are saved in
+`/etc/warp-package-source` and checked during CI.
+The installed version and architecture are recorded in the image and printed
+during CI. Unit tests, CLI/architecture checks and Docker log rotation must
+pass before publishing the combined manifests to Docker Hub and GHCR.
 
 Manual dispatch defaults to a candidate: `sha-<full commit SHA>` and UTC date
 tags, with no `latest` change. After Azure acceptance, dispatch the workflow

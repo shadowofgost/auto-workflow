@@ -1,22 +1,22 @@
 FROM ubuntu:26.04
 
-ARG WARP_VERSION
 ARG COMMIT_SHA=unknown
 ARG TARGETARCH
 LABEL org.opencontainers.image.source="https://github.com/shadowofgost/auto-workflow" \
-      org.opencontainers.image.revision="${COMMIT_SHA}" \
-      org.opencontainers.image.version="${WARP_VERSION}"
+      org.opencontainers.image.revision="${COMMIT_SHA}"
 
 RUN set -eux; \
     case "${TARGETARCH:-$(dpkg --print-architecture)}" in amd64|arm64) ;; *) exit 1 ;; esac; \
     apt-get update; \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl gpg python3-minimal; \
-    curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | gpg --batch --yes --dearmor -o /usr/share/keyrings/cloudflare-warp.gpg; \
+    curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | gpg --batch --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg; \
     . /etc/os-release; \
-    echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp.gpg] https://pkg.cloudflareclient.com/ ${VERSION_CODENAME} main" > /etc/apt/sources.list.d/cloudflare-warp.list; \
+    test "$ID" = ubuntu; \
+    test -n "$UBUNTU_CODENAME"; \
+    echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ ${UBUNTU_CODENAME} main" > /etc/apt/sources.list.d/cloudflare-client.list; \
     apt-get update; \
-    if [ -n "${WARP_VERSION:-}" ]; then package="cloudflare-warp=$WARP_VERSION"; else package=cloudflare-warp; fi; \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$package"; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cloudflare-warp; \
+    printf 'distribution=%s\nsuite=%s\nrepository=%s\n' "$ID" "$UBUNTU_CODENAME" https://pkg.cloudflareclient.com/ > /etc/warp-package-source; \
     dpkg-query -W -f='${Version}\n' cloudflare-warp > /etc/warp-package-version; \
     dpkg-query -W -f='${Architecture}\n' cloudflare-warp > /etc/warp-package-architecture; \
     rm -rf /var/lib/apt/lists/*; \

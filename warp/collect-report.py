@@ -56,7 +56,6 @@ def main():
              "| 默认代理入口 | 官方原生 SOCKS5，40000 | GOST，1080；现有变量 WARP_PROXY/WARP_PORT 不由其入口解析 |",
              "| 持久化启动 | 每次重设模式、端口、endpoint 并连接 | 已有注册时跳过首次注册和连接代码 |",
              "| 进程与日志 | Python 监督、信号转发、精简过滤、qlog 默认关闭 | shell 启动 daemon，前台 GOST，保留 daemon 输出、默认关闭 qlog |",
-             "| WARP 版本参数 | 实际约束 APT 安装版本 | Dockerfile 的 WARP_VERSION 仅写入标签 |",
              "| 架构 | 本次原生构建并检查 amd64/arm64 | Dockerfile 支持 amd64/arm64 |",
              "| 用户 | root | warp 用户，具备免密码 sudo |", "",
              "原始入口测试允许读取冷备份中已有的代理设置，因此端口存在与否不能单独证明其支持这些环境变量。",
