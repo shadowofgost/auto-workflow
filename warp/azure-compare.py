@@ -287,6 +287,9 @@ class Comparison:
         (self.work / "environment").chmod(0o600)
         shutil.copyfile(COMPOSE, self.work / "azure.yml.before")
         (self.work / "azure.yml.before").chmod(0o600)
+        compose_stat = COMPOSE.stat()
+        (self.work / "compose-metadata.json").write_text(json.dumps({"uid": compose_stat.st_uid,
+             "gid": compose_stat.st_gid, "mode": compose_stat.st_mode & 0o777}))
         self.command("docker", "compose", "-f", str(COMPOSE), "config", "--quiet")
         self.event("baseline", image=self.original["Image"],
                    state=self.original["State"]["Status"], health=self.original["State"].get("Health", {}).get("Status"),
@@ -411,6 +414,10 @@ class Comparison:
             self.command("docker", "start", "warp", timeout=45)
         if (self.work / "azure.yml.before").exists():
             shutil.copyfile(self.work / "azure.yml.before", COMPOSE)
+            if (self.work / "compose-metadata.json").exists():
+                metadata = json.loads((self.work / "compose-metadata.json").read_text())
+                os.chown(COMPOSE, metadata["uid"], metadata["gid"])
+                COMPOSE.chmod(metadata["mode"])
         self.rollback_needed = False
         self.event("restored_original", state=self.inspect()["State"]["Status"])
         self.checkpoint()
@@ -419,9 +426,11 @@ class Comparison:
         original = COMPOSE.read_text()
         revised = network.update_compose(original, image, self.net_admin)
         temporary = COMPOSE.with_name(".azure-warp-candidate.yml")
+        metadata = COMPOSE.stat()
         try:
             temporary.write_text(revised)
-            temporary.chmod(COMPOSE.stat().st_mode & 0o777)
+            os.chown(temporary, metadata.st_uid, metadata.st_gid)
+            temporary.chmod(metadata.st_mode & 0o777)
             self.command("docker", "compose", "--project-directory", str(COMPOSE.parent),
                          "-f", str(temporary), "config", "--quiet")
             temporary.replace(COMPOSE)
@@ -448,6 +457,8 @@ class Comparison:
         self.heartbeat_stop.set()
 
     def run(self):
+        if self.output.exists() or (self.work / "control.json").exists():
+            raise RuntimeError("Run directory already contains evidence; choose a new --work")
         if os.geteuid() != 0:
             raise RuntimeError("Run with sudo to preserve data ownership and protect the snapshot")
         import fcntl

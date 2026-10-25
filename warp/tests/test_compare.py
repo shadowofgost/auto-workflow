@@ -112,6 +112,25 @@ class ComparisonTests(unittest.TestCase):
             recovery.assert_called_once_with(directory)
         self.assertTrue((directory / "abort-requested").exists())
 
+    def test_previous_run_evidence_is_never_overwritten(self):
+        self.subject.output.write_text("previous evidence\n")
+        with self.assertRaisesRegex(RuntimeError, "already contains evidence"):
+            self.subject.run()
+        self.assertEqual(self.subject.output.read_text(), "previous evidence\n")
+
+    def test_atomic_compose_write_preserves_owner_and_validates_both_files(self):
+        compose = Path(self.directory.name) / "azure.yml"
+        compose.write_text("services:\n  warp:\n    image: old\n")
+        before = compose.stat()
+        self.subject.command = Mock(return_value=subprocess.CompletedProcess([], 0, "", ""))
+        self.subject.net_admin = True
+        with patch.object(module, "COMPOSE", compose), patch.object(module.os, "chown", create=True) as chown:
+            self.subject.persist_compose("tested")
+            chown.assert_called_once_with(compose.with_name(".azure-warp-candidate.yml"), before.st_uid, before.st_gid)
+        self.assertEqual(self.subject.command.call_count, 2)
+        self.assertIn("NET_ADMIN", compose.read_text())
+        self.assertFalse(compose.with_name(".azure-warp-candidate.yml").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

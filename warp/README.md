@@ -5,14 +5,18 @@ networking, applications on the host (including Xray using host networking)
 can connect to `socks5h://127.0.0.1:40000`. A bridge container's own localhost
 does not point at that listener. This image does not contain GOST.
 
-**Azure acceptance (2026-10-24): not passed under the supplied permissions.**
-The Ubuntu 26.04/resolute candidate (WARP 2026.8.2115.0) still failed to
-install fwmark policy rules without network administration capability, even
-in proxy mode. The original deployment was restored; latest was not promoted.
-See [the Ubuntu package retest](reports/azure-ubuntu-20261024.md) and the
-[earlier comparison](reports/azure-comparison-20261018.md). Host
-networking alone is not evidence that this client version will work with the
-existing permissions. No broader capability or host-route change was made.
+**Azure acceptance (2026-10-25): passed with host networking + NET_ADMIN.**
+The Ubuntu 26.04/resolute image (WARP 2026.8.2115.0) failed the same-image
+control without NET_ADMIN and passed the proxy, restart and ten-minute
+stability checks with it. The constrained upstream stock entrypoint and
+adapted native proxy also passed. The tested image was promoted to latest
+without rebuilding and retained on Azure, with capabilities and bounded logs
+persisted in Compose. Host direct traffic and Xray still returned warp=off;
+the native SOCKS5 proxy returned warp=on. Host-network effects were measured
+for this run and client version, not guaranteed for future releases.
+See [the NET_ADMIN comparison](reports/azure-netadmin-20261025.md), the
+[earlier Ubuntu retest](reports/azure-ubuntu-20261024.md) and the
+[original comparison](reports/azure-comparison-20261018.md).
 
 ## Configuration
 

@@ -204,6 +204,15 @@ def daemon_capabilities(rows, proc=Path("/proc")):
     return found
 
 
+def compose_other_services(text):
+    import yaml
+    document = yaml.compose(text)
+    services = next(value for key, value in document.value if key.value == "services")
+    key, node = next((key, value) for key, value in services.value if key.value == "warp")
+    lines = text.splitlines(keepends=True)
+    return "".join(lines[:key.start_mark.line] + lines[node.end_mark.line:])
+
+
 def update_compose(text, image, net_admin):
     """Rewrite the WARP node only, keeping other services and comments intact."""
     import yaml

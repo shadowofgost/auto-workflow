@@ -7,6 +7,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import azure_network as network
+
 work = Path(sys.argv[1]).resolve()
 if not re.fullmatch(r"/var/tmp/warp-upgrade-[a-zA-Z0-9-]+", str(work)):
     raise SystemExit("Unexpected comparison directory")
@@ -21,7 +24,8 @@ container = json.loads(run("docker", "inspect", "warp"))[0]
 secrets = [item.split("=", 1)[1] for item in container["Config"]["Env"]
            if item.startswith("WARP_LICENSE_KEY=") and item.split("=", 1)[1]]
 lines = []
-for line in run("docker", "logs", "--tail", "400", "warp").splitlines():
+daemon_log = run("docker", "logs", "--tail", "400", "warp")
+for line in daemon_log.splitlines():
     line = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", line)
     if re.search(r"fwmark.*Operation not permitted|mknod:|not permitted|INFO (Starting WARP|Configured mode|Reusing existing)|ERROR WARP command|Extra logging has not yet", line):
         for secret in secrets:
@@ -34,11 +38,29 @@ last = json.loads((work / "results.jsonl").read_text().splitlines()[-1])
 record = {"time": datetime.datetime.now(datetime.timezone.utc).isoformat(), "stage": last["stage"],
           "kind": "diagnostics", "image": container["Image"], "version": version,
           "health": container["State"].get("Health", {}).get("Status"),
-          "restarts": container["RestartCount"], "lines": lines[-12:]}
+          "restarts": container["RestartCount"], "lines": lines[-12:],
+          "configured_cap_add": container["HostConfig"].get("CapAdd") or [],
+          "log_config": container["HostConfig"]["LogConfig"],
+          "license_leaked": any(secret in daemon_log or secret in (work / "results.jsonl").read_text() for secret in secrets),
+          "log_tail_lines": len(daemon_log.splitlines()),
+          "debug_lines_in_tail": sum(bool(re.search(r"\bDEBUG\b", line)) for line in daemon_log.splitlines())}
 if pid != "0":
-    status = Path(f"/proc/{pid}/status").read_text()
-    capability = re.search(r"^CapEff:\s*([0-9a-f]+)", status, re.MULTILINE)
-    record["cap_net_admin"] = bool(int(capability.group(1), 16) & (1 << 12)) if capability else None
+    rows = [{"pid": fields[0], "command": fields[1]} for line in run("docker", "top", "warp", "-eo", "pid,comm").splitlines()[1:]
+            if len(fields := line.split(None, 1)) == 2]
+    record["daemon_capabilities"] = network.daemon_capabilities(rows)
+    record["cap_net_admin"] = all(row["net_admin"] for row in record["daemon_capabilities"]) if record["daemon_capabilities"] else None
+if (work / "network-before.json").exists():
+    before = json.loads((work / "network-before.json").read_text())
+    state = json.loads((work / "control.json").read_text())
+    record["network"] = network.summary(before, network.snapshot(state["args"].get("ssh_peer")))
+if (work / "azure.yml.before").exists():
+    import yaml
+    compose = Path("/home/shadowofgost/Docker/azure.yml")
+    record["other_services_unchanged"] = network.compose_other_services(compose.read_text()) == network.compose_other_services((work / "azure.yml.before").read_text())
+    metadata = compose.stat()
+    record["compose_metadata"] = {"uid": metadata.st_uid, "gid": metadata.st_gid, "mode": oct(metadata.st_mode & 0o777)}
+    service = yaml.safe_load(compose.read_text())["services"]["warp"]
+    record["compose_service"] = {key: service.get(key) for key in ("image", "network_mode", "cap_add", "logging")}
 if last["stage"] == "rollback":
     original = json.loads((work / "original.json").read_text())
     record["original_image_restored"] = original["Image"] == container["Image"]

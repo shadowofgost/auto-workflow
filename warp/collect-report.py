@@ -41,7 +41,7 @@ def main():
     restored = any(e["kind"] == "restored_original" for e in events)
     lines = ["# Azure WARP NET_ADMIN 双镜像检验报告", "",
              f"采集时间：{datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).isoformat(timespec='seconds')}（Asia/Shanghai）。",
-             f"原生双架构构建与验证：[GitHub Actions]({args.run})。", "",
+             f"原候选双架构构建与验证：[GitHub Actions]({args.run})；本轮复用镜像。", "",
              "## 结论", "",
              ("新镜像已通过 Azure 验收并部署。" if deployed and not restored
               else "Azure 验收未通过，已恢复测试前镜像及冷备份数据。原部署可能本已存在故障，回滚不代表原有故障已修复。" if restored
@@ -61,7 +61,7 @@ def main():
              "| 默认代理入口 | 官方原生 SOCKS5，40000 | GOST，1080；现有变量 WARP_PROXY/WARP_PORT 不由其入口解析 |",
              "| 持久化启动 | 每次重设模式、端口、endpoint 并连接 | 已有注册时跳过首次注册和连接代码 |",
              "| 进程与日志 | Python 监督、信号转发、精简过滤、qlog 默认关闭 | shell 启动 daemon，前台 GOST，保留 daemon 输出、默认关闭 qlog |",
-             "| 架构 | 本次原生构建并检查 amd64/arm64 | Dockerfile 支持 amd64/arm64 |",
+             "| 架构 | 原候选已原生检查 amd64/arm64，本轮复用 | Dockerfile 支持 amd64/arm64 |",
              "| 用户 | root | warp 用户，具备免密码 sudo |", "",
              "原始入口允许读取冷备份中已有的代理设置，因此端口存在与否不能单独证明其支持这些环境变量。",
              "相同 WARP 版本号仍对应不同 Ubuntu 软件包和依赖，不把结果视为完全相同二进制的对照实验。", "",
@@ -76,6 +76,8 @@ def main():
         downloads = [e for e in selected if e["kind"] == "download"]
         stability = [e for e in selected if e["kind"] == "stability"]
         conclusion = next((e.get("passed") for e in reversed(selected) if e["kind"] in ("phase_result", "compatibility")), None)
+        if phase == 'production' and any(e['kind'] == 'deployed' for e in selected):
+            conclusion = True
         counts = lambda rows: f"{sum(e['ok'] for e in rows)}/{len(rows)}" if rows else "未执行"
         verdict = '通过' if conclusion is True else '未通过' if conclusion is False else '未完成'
         if phase == 'own-without-net-admin' and conclusion is False:
@@ -109,6 +111,13 @@ def main():
                 detail = {k: v for k, v in event.items() if k not in ("time", "stage", "kind")}
                 lines.append(f"- {event['kind']}：`{json.dumps(detail, ensure_ascii=False)}`。")
         if diagnostics:
+            final = diagnostics[-1]
+            if 'compose_service' in final:
+                lines.append(f"生产 Compose：`{json.dumps(final['compose_service'], ensure_ascii=False)}`。")
+                lines.append(f"其他服务原文保持：`{final.get('other_services_unchanged')}`；配置属主及权限：`{json.dumps(final.get('compose_metadata'))}`。")
+                lines.append(f"实际日志配置：`{json.dumps(final.get('log_config'))}`；最终网络回归：`{final.get('network', {}).get('problems')}`。")
+                if 'license_leaked' in final:
+                    lines.append(f"许可证泄露检查：`{final['license_leaked']}`；日志尾部行数：`{final.get('log_tail_lines')}`；DEBUG 行数：`{final.get('debug_lines_in_tail')}`。")
             lines += ["", "启动诊断摘录：", "", "```text"]
             lines.extend(dict.fromkeys(re.sub(r"^\S+\s+", "", line) for line in diagnostics[-1].get("lines", [])))
             lines += ["```"]

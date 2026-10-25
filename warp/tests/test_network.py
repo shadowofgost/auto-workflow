@@ -59,6 +59,7 @@ class NetworkTests(unittest.TestCase):
         revised = module.update_compose(source, "tested@sha256:digest", True)
         self.assertEqual(module.update_compose(revised, "tested@sha256:digest", True), revised)
         self.assertEqual(revised.split("    nginx:\n")[1], source.split("    nginx:\n")[1])
+        self.assertEqual(module.compose_other_services(revised), module.compose_other_services(source))
         self.assertIn("NET_RAW", revised)
         self.assertEqual(revised.count("NET_ADMIN"), 1)
 
