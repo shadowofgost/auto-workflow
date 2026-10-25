@@ -39,7 +39,13 @@ daemon remains visible through the trace-based Docker health check.
 `registration license` is a setter; the readable License field is obtained
 using `registration show`. No license is written to container logs.
 
-## Bounded logs on Azure
+## Azure permissions and bounded logs
+
+The supplied override grants `NET_ADMIN` for the client's fwmark policy-rule
+installation and bounds Docker logs. With `network_mode: host`, that capability
+applies to the host network namespace. Proxy mode must therefore be verified
+against host routes, DNS, firewall and existing services; it is not a guarantee
+of isolation. No privileged mode or additional TUN device mount is configured.
 
 Apply the logging override together with the existing deployment file, using
 the same Compose project and working directory:
@@ -88,6 +94,9 @@ not log in or publish. ARM means arm64/aarch64, not arm/v7.
 python3 -m unittest discover -s warp/tests -v
 ```
 
+The maintenance tests require PyYAML (already installed on the Azure host);
+the WARP image itself does not depend on PyYAML.
+
 `test-azure-warp.py` can be piped over SSH to Python on Azure. Its default
 checks only direct and WARP egress. `--containers` adds temporary curl
 containers; `--include-xray` or `--xray-only` explicitly opts into inspection
@@ -95,12 +104,21 @@ and a real request through the existing Xray WebSocket socket.
 
 `azure-compare.py` is a root-only maintenance tool for the agreed Azure
 deployment. It pre-pulls images, pauses Watchtower, stops and retains the
-original container under `warp-before-upgrade-20261018`, takes a cold data
-snapshot and archives old Docker logs. It restores the same snapshot before
-each test phase and never changes Xray or host routing. It must not be run
-concurrently or against another deployment.
+original container under a name derived from the run directory, takes a cold
+data snapshot and archives old Docker logs. A host lock rejects concurrent
+runs. Private run directories default to a UTC timestamp. It restores the
+same snapshot before each phase and does not change Xray configuration.
+Do not run it against another deployment.
 
-The upstream stock-entrypoint test preserves all supplied parameters. The
+`--net-admin` explicitly grants the capability to both images and production
+deployment; it is off by default. This option first runs a short control using
+the same candidate digest without the capability. The formal phases are the
+candidate, constrained upstream stock entrypoint, adapted upstream native
+proxy and a repeat of the candidate. Image references are pinned after pulling.
+
+The upstream stock-entrypoint test adds `GOST_ARGS=-L 127.0.0.1:1080` and an
+empty `WARP_ENABLE_NAT` to prevent public GOST listening or NAT configuration;
+it is skipped if port 1080 is occupied. These differences are reported. The
 adapted test mounts this image's supervisor through a separate `sudo -E
 python3` entrypoint, using only the upstream image's WARP client; GOST,
 TUN creation and NAT are not started. It compares native proxies at port
@@ -112,10 +130,23 @@ requests, restart checks and a repeat of the candidate. Raw samples go to
 container inspection, snapshots and archived logs stay on the server with
 restricted permissions. Public reports contain only sanitized evidence.
 
+An independent systemd watchdog checks controller liveness, a 90-second
+heartbeat, a 90-minute deadline and host-network invariants. Main routes,
+unmarked traffic decisions, DNS and firewall rules are compared with the
+baseline; new tunnel interfaces and unmarked policy rules fail the trial.
+New fwmark rules are recorded. Recovery stops the trial and restores the
+measured network delta, original container, cold data and Compose configuration.
+It does not globally flush routes or firewall rules. Pass `--controller-unit`
+when launching the controller through systemd so recovery can stop its full
+process tree. `azure_network.py --check` performs a read-only baseline check.
+
 When `--production-image` is supplied, the tool waits for a root-created
 `promotion-approved` file in its work directory after acceptance. It pulls
 the promoted tag and verifies that its image ID matches the tested candidate
-before deployment. Failures restore the original container and cold data;
+before deployment. The production WARP service is updated atomically and
+idempotently through PyYAML, with Compose validation before and after replacement;
+other services retain their original text. NET_ADMIN, image and log rotation
+are persisted together. Failures restore the original container and cold data;
 the old deployment may already have been unhealthy before the test.
 
 Readiness failures capture an allowlisted startup diagnostic before rollback.

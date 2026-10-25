@@ -24,12 +24,12 @@ def number(value):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--work", required=True)
-    parser.add_argument("--output", default="warp/reports/azure-comparison-20261018")
+    parser.add_argument("--output", default="warp/reports/azure-netadmin-" + datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime("%Y%m%d"))
     parser.add_argument("--run", required=True)
     args = parser.parse_args()
     if not re.fullmatch(r"/var/tmp/warp-upgrade-[a-zA-Z0-9-]+", args.work):
         parser.error("Unexpected remote work directory")
-    result = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "azure",
+    result = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-o", "ConnectionAttempts=2", "azure",
                              "sudo", "-n", "cat", args.work + "/results.jsonl"],
                             capture_output=True, check=True, timeout=60)
     events = [json.loads(line) for line in result.stdout.decode().splitlines() if line.strip()]
@@ -37,18 +37,23 @@ def main():
     output.parent.mkdir(parents=True, exist_ok=True)
     output.with_suffix(".jsonl").write_text(result.stdout.decode(), encoding="utf-8")
     phases = list(dict.fromkeys(event["stage"] for event in events if event["kind"] == "image"))
-    lines = ["# Azure WARP 镜像对比检验报告", "",
+    deployed = any(e["kind"] == "deployed" for e in events)
+    restored = any(e["kind"] == "restored_original" for e in events)
+    lines = ["# Azure WARP NET_ADMIN 双镜像检验报告", "",
              f"采集时间：{datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).isoformat(timespec='seconds')}（Asia/Shanghai）。",
              f"原生双架构构建与验证：[GitHub Actions]({args.run})。", "",
              "## 结论", "",
-             ("新镜像已通过 Azure 验收并部署。" if any(e['kind'] == 'deployed' for e in events)
-              else "Azure 验收未通过，已恢复测试前镜像及冷备份数据；latest 未提升。原部署在测试前即无法提供代理，回滚不代表原有故障已修复。"),
-             "本次双方出现 fwmark 规则安装权限错误。未增加权限进行反事实验证，因此只报告原参数下的实际失败，不声称已经验证加权限后的修复效果。", "",
+             ("新镜像已通过 Azure 验收并部署。" if deployed and not restored
+              else "Azure 验收未通过，已恢复测试前镜像及冷备份数据。原部署可能本已存在故障，回滚不代表原有故障已修复。" if restored
+              else "测试未完成或在部署前停止，不能宣称验收通过。"),
+             "权限、网络影响和代理可用性均按本次样本报告；不预先保证添加 NET_ADMIN 一定成功。", "",
              "## 测试条件", "",
              "Azure amd64，约 836MiB RAM、无 swap；每次仅运行一个 WARP 实例。保留原有 host 网络、",
              "WARP_SLEEP=3、WARP_PROXY=TRUE、WARP_PORT=40000、许可证、数据路径、重启及健康检查参数。",
              "许可证不写入报告；每阶段从同一冷备份恢复注册数据。双方统一使用 10MB×3 的 JSON 日志轮转。",
-             "对方适配入口使用同一监督器，只测原生 SOCKS5 代理，不启动 GOST、TUN 或 NAT，不增加网络管理权限。", "",
+             "各阶段实际 NET_ADMIN 配置参见表格及 daemon CapEff；无权限对照单独标注，不使用 privileged 或额外 TUN 挂载。",
+             "对方适配入口使用同一监督器，只测原生 SOCKS5 代理，不启动 GOST 或 NAT。",
+             "对方原始入口限制 GOST 到 127.0.0.1:1080 并关闭 NAT，属于受约束原始入口检查，不能称为完全未经参数调整。", "",
              "## 实现差异", "",
              "| 项目 | 升级后的自有镜像 | 对方当前镜像/源码 |",
              "| --- | --- | --- |",
@@ -58,23 +63,28 @@ def main():
              "| 进程与日志 | Python 监督、信号转发、精简过滤、qlog 默认关闭 | shell 启动 daemon，前台 GOST，保留 daemon 输出、默认关闭 qlog |",
              "| 架构 | 本次原生构建并检查 amd64/arm64 | Dockerfile 支持 amd64/arm64 |",
              "| 用户 | root | warp 用户，具备免密码 sudo |", "",
-             "原始入口测试允许读取冷备份中已有的代理设置，因此端口存在与否不能单独证明其支持这些环境变量。",
+             "原始入口允许读取冷备份中已有的代理设置，因此端口存在与否不能单独证明其支持这些环境变量。",
              "相同 WARP 版本号仍对应不同 Ubuntu 软件包和依赖，不把结果视为完全相同二进制的对照实验。", "",
              "## 实测结果", "",
-             "| 阶段 | trace 成功 | 首字节 p50/p95（秒） | 总耗时 p50/p95（秒） | 下载成功 | 稳定性成功 | 阶段验收 |",
-             "| --- | --- | --- | --- | --- | --- | --- |"]
+             "| 阶段 | NET_ADMIN | trace 成功 | 首字节 p50/p95（秒） | 总耗时 p50/p95（秒） | 下载成功 | 稳定性成功 | 阶段验收 |",
+             "| --- | --- | --- | --- | --- | --- | --- | --- |"]
     for phase in phases:
         selected = [e for e in events if e["stage"] == phase]
         traces = [e for e in selected if e["kind"] == "trace"]
+        successful = [e for e in traces if e["ok"]]
+        image = next(e for e in selected if e["kind"] == "image")
         downloads = [e for e in selected if e["kind"] == "download"]
         stability = [e for e in selected if e["kind"] == "stability"]
         conclusion = next((e.get("passed") for e in reversed(selected) if e["kind"] in ("phase_result", "compatibility")), None)
         counts = lambda rows: f"{sum(e['ok'] for e in rows)}/{len(rows)}" if rows else "未执行"
-        lines.append(f"| {phase} | {counts(traces)} | "
-                     f"{number(percentile([e['ttfb'] for e in traces], .5))}/{number(percentile([e['ttfb'] for e in traces], .95))} | "
-                     f"{number(percentile([e['total'] for e in traces], .5))}/{number(percentile([e['total'] for e in traces], .95))} | "
+        verdict = '通过' if conclusion is True else '未通过' if conclusion is False else '未完成'
+        if phase == 'own-without-net-admin' and conclusion is False:
+            verdict = '无权限对照失败'
+        lines.append(f"| {phase} | {image.get('net_admin', '未记录')} | {counts(traces)} | "
+                     f"{number(percentile([e['ttfb'] for e in successful], .5))}/{number(percentile([e['ttfb'] for e in successful], .95))} | "
+                     f"{number(percentile([e['total'] for e in successful], .5))}/{number(percentile([e['total'] for e in successful], .95))} | "
                      f"{counts(downloads)} | {counts(stability)} | "
-                     f"{'通过' if conclusion is True else '未通过' if conclusion is False else '未完成'} |")
+                     f"{verdict} |")
     lines += ["", "## 镜像和诊断证据", ""]
     for phase in phases:
         selected = [e for e in events if e["stage"] == phase]
@@ -85,12 +95,14 @@ def main():
             runtime = diagnostics[-1]
         ready = next((e for e in selected if e["kind"] == "ready"), {})
         labels = image.get("labels", {})
-        version = (runtime.get('version') or labels.get('WARP_VERSION') or labels.get('org.opencontainers.image.version', '未取得')).replace('\n', '; ')
+        version = (runtime.get('version') or labels.get('WARP_VERSION') or '未取得').replace('\n', '; ')
         lines += [f"### {phase}", "", f"- 镜像：`{image['reference']}`；本地大小 {image['size'] / 1048576:.1f}MiB。",
                   f"- Digest：`{', '.join(image.get('digests') or [])}`。",
                   f"- WARP：`{version}`；"
                   f"GOST：`{labels.get('GOST_VERSION', '未安装')}`。",
                   f"- 源码：`{labels.get('COMMIT_SHA') or labels.get('org.opencontainers.image.revision', '未标注')}`。",
+                  f"- 入口：`{json.dumps(image.get('entrypoint'), ensure_ascii=False)}`；适配：`{image.get('adapted')}`；参数差异：`{json.dumps(image.get('parameter_differences', {}), ensure_ascii=False)}`。",
+                  f"- Docker CapAdd：`{diagnostics[-1].get('configured_cap_add', []) if diagnostics else []}`；daemon CapEff：`{json.dumps(diagnostics[-1].get('daemon_capabilities', []) if diagnostics else [])}`。",
                   f"- 首次恢复健康：{number(ready.get('seconds'))} 秒；自动重启次数：{ready.get('auto_restarts', diagnostics[-1].get('restarts', '未取得') if diagnostics else '未取得')}。"]
         for event in selected:
             if event["kind"] in ("restart", "log_growth", "readiness_failed", "stopped_proxy"):
@@ -100,19 +112,29 @@ def main():
             lines += ["", "启动诊断摘录：", "", "```text"]
             lines.extend(dict.fromkeys(re.sub(r"^\S+\s+", "", line) for line in diagnostics[-1].get("lines", [])))
             lines += ["```"]
+        stats = [e['stats'] for e in selected if e['kind'] == 'stability' and e.get('stats')]
+        if stats:
+            lines.append(f"最后一次 CPU/内存采样：`{stats[-1]}`；完整时间序列见 JSONL。")
         lines.append("")
+    host = [e for e in events if e['kind'] == 'host_network']
+    lines += ["## 宿主网络检查", "", f"记录 {len(host)} 次，其中回归记录 {sum(bool(e.get('problems')) for e in host)} 次。"]
+    rules = dict.fromkeys(json.dumps(e.get('added_rules', {}), ensure_ascii=False, sort_keys=True) for e in host)
+    lines.extend(f"- 新增策略规则差异：`{rule}`" for rule in rules)
+    for event in host:
+        if event.get('problems'):
+            lines.append(f"- {event['stage']}：`{json.dumps(event, ensure_ascii=False)}`")
     lines += ["## 最终部署及限制", ""]
     for event in events:
-        if event["kind"] in ("baseline", "acceptance", "deployed", "restored_original", "fatal"):
+        if event["kind"] in ("baseline", "services_baseline", "acceptance", "deployed", "restored_original", "fatal", "watchdog_abort", "network_recovery", "verification", "skipped", "snapshot_complete"):
             lines.append(f"- `{event['time']}` {event['kind']}：`{json.dumps({k:v for k,v in event.items() if k not in ('time','kind','stage')}, ensure_ascii=False)}`")
-    verification = next((e for e in reversed(events) if e['stage'] == 'rollback' and 'original_image_restored' in e), None)
+    verification = next((e for e in reversed(events) if e['kind'] == 'verification'), None)
     if verification:
-        lines += ["", "恢复核验：", "", f"- 原镜像一致：{verification['original_image_restored']}；注册身份保留：{verification['identity_preserved']}。",
+        lines += ["", "部署/恢复核验：", "", f"- 原镜像一致：{verification['original_image_restored']}；注册身份保留：{verification['identity_preserved']}。",
                   f"- Compose 已恢复：{verification['compose_restored']}；Watchtower 运行：{verification['watchtower_running']}。",
                   f"- 最终 WARP 健康状态：{verification['health']}；CAP_NET_ADMIN：{verification.get('cap_net_admin')}。"]
     lines += ["", "原始逐请求数据见同名 JSONL。计划在启动成功后执行 20 次请求、间隔 1 秒；稳定性窗口每 15 秒采样，共 40 次、持续 10 分钟。启动未通过时，后续性能、重启和稳定性项目不执行，不能据此得出性能排名。",
               "下载为 3 次 1MiB 的同一 Cloudflare URL。失败样本保留，未用重试覆盖失败。",
-              "启动轮询在每阶段保留最后一次失败 trace，未逐次归档所有就绪轮询；表中 trace 指启动成功后才执行的性能批次。",
+              "启动轮询逐次保留 readiness_probe；表中 trace 指启动成功后执行的性能批次。耗时分位数仅统计成功请求，失败样本保留。",
               "Azure 结果只代表 amd64 和本次网络条件，不能推断 ARM 网络性能、GOST 性能或 OpenAI 等站点可用性。",
               "Xray 路由未修改。两镜像客户端版本不同或适配后仍失败时，不把结果直接归因为代理实现的性能差异。", ""]
     output.with_suffix(".md").write_text("\n".join(lines), encoding="utf-8")

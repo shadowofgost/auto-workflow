@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 SPEC = importlib.util.spec_from_file_location("compare", Path(__file__).parents[1] / "azure-compare.py")
 module = importlib.util.module_from_spec(SPEC)
@@ -59,6 +59,58 @@ class ComparisonTests(unittest.TestCase):
         self.subject.diagnostics()
         record = self.subject.event.call_args.kwargs
         self.assertEqual(record["lines"], ["ERROR WARP command failed: [redacted]"])
+
+    def test_net_admin_is_opt_in_and_applies_to_both_entrypoints(self):
+        self.subject.original = {"Config": {"Healthcheck": {"Test": ["CMD-SHELL", "healthcheck"]}}}
+        self.subject.args.supervisor = "/tmp/supervisor.py"
+        self.subject.inspect = Mock(return_value={"Image": "trial", "Config": {"Entrypoint": ["entrypoint"]}})
+        info = {"RepoDigests": ["image@sha256:test"], "Config": {"Labels": {}}, "Size": 1}
+        def response(*args, **kwargs):
+            return subprocess.CompletedProcess(args, 0, json.dumps([info]) if args[:3] == ("docker", "image", "inspect") else "", "")
+        self.subject.command = Mock(side_effect=response)
+        self.subject.event = Mock()
+        self.subject.launch("own")
+        self.assertNotIn("--cap-add", self.subject.command.call_args_list[0].args)
+        for adapted in (False, True):
+            self.subject.net_admin = True
+            self.subject.command.reset_mock()
+            self.subject.launch("candidate", adapted=adapted)
+            argv = self.subject.command.call_args_list[0].args
+            self.assertEqual(argv[argv.index("--cap-add") + 1], "NET_ADMIN")
+            self.assertNotIn("--privileged", argv)
+            self.assertNotIn("--device", argv)
+        self.subject.command.reset_mock()
+        self.subject.launch("own", net_admin=False)
+        self.assertNotIn("--cap-add", self.subject.command.call_args_list[0].args)
+
+    def test_stock_gost_is_loopback_only_and_nat_disabled(self):
+        self.subject.original = {"Config": {"Healthcheck": {"Test": ["CMD-SHELL", "healthcheck"]}}}
+        self.subject.inspect = Mock(return_value={"Image": "trial", "Config": {}})
+        self.subject.command = Mock(side_effect=lambda *args, **kwargs: subprocess.CompletedProcess(args, 0,
+            json.dumps([{"Size": 1, "Config": {}}]) if args[:3] == ("docker", "image", "inspect") else "", ""))
+        self.subject.launch("upstream", stock=True)
+        argv = self.subject.command.call_args_list[0].args
+        self.assertIn("GOST_ARGS=-L 127.0.0.1:1080", argv)
+        self.assertIn("WARP_ENABLE_NAT=", argv)
+
+    def test_host_regression_aborts_the_trial(self):
+        self.subject.host_baseline = {}
+        self.subject.host_snapshot = Mock(return_value={})
+        with patch.object(module.network, "summary", return_value={"problems": ["main route changed"]}):
+            with self.assertRaisesRegex(RuntimeError, "Host regression"):
+                self.subject.host_check(services=False)
+
+    def test_watchdog_recovers_if_controller_is_dead(self):
+        directory = Path(self.directory.name)
+        (directory / "control.json").write_text(json.dumps({"completed": False, "pid": 12345, "args": {}}))
+        (directory / "network-before.json").write_text("{}")
+        with patch.object(module.os, "kill", side_effect=ProcessLookupError), \
+             patch.object(module.network, "snapshot", return_value={}), \
+             patch.object(module.network, "regressions", return_value=[]), \
+             patch.object(module, "recover") as recovery:
+            self.assertEqual(module.watchdog(directory), 1)
+            recovery.assert_called_once_with(directory)
+        self.assertTrue((directory / "abort-requested").exists())
 
 
 if __name__ == "__main__":
