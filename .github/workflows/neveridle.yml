@@ -1,0 +1,126 @@
+name: neveridle build
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 08:00 Asia/Shanghai on the 15th of every month.
+    - cron: "0 0 15 * *"
+  push:
+    branches: [main]
+    paths:
+      - neveridle/**
+      - .github/workflows/neveridle.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - neveridle/**
+      - .github/workflows/neveridle.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neveridle-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve latest upstream release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(gh api repos/layou233/NeverIdle/releases/latest --jq '.tag_name // empty')"
+          if [[ ! "$version" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]]; then
+            echo "Invalid upstream release tag: $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "date=$(TZ=Asia/Shanghai date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+          echo "Building NeverIdle release $version"
+
+      - name: Validate Compose configuration
+        run: |
+          docker compose -f neveridle/compose.yml config --quiet
+          docker compose --env-file neveridle/.env.example -f neveridle/compose.yml config --quiet
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and smoke test both architectures
+        env:
+          NEVERIDLE_VERSION: ${{ steps.release.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            docker buildx build \
+              --platform "linux/$arch" \
+              --build-arg "NEVERIDLE_VERSION=$NEVERIDLE_VERSION" \
+              --load \
+              --tag "neveridle:smoke-$arch" \
+              ./neveridle
+            timeout 30s docker run --rm --platform "linux/$arch" "neveridle:smoke-$arch" --help
+          done
+
+      - name: Login to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Login to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish multi-platform images
+        if: github.event_name != 'pull_request'
+        id: publish
+        uses: docker/build-push-action@v7
+        with:
+          context: ./neveridle
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            NEVERIDLE_VERSION=${{ steps.release.outputs.version }}
+          push: true
+          tags: |
+            shadowofgost/neveridle:latest
+            shadowofgost/neveridle:${{ steps.release.outputs.date }}
+            ghcr.io/shadowofgost/neveridle:latest
+            ghcr.io/shadowofgost/neveridle:${{ steps.release.outputs.date }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.release.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Verify published architectures
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for image in docker.io/shadowofgost/neveridle ghcr.io/shadowofgost/neveridle; do
+            docker buildx imagetools inspect "$image@$IMAGE_DIGEST" --raw |
+              jq -e '[.manifests[].platform | select(.os == "linux") | .architecture] |
+                (index("amd64") != null and index("arm64") != null)'
+          done

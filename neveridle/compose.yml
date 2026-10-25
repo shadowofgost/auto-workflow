@@ -1,0 +1,13 @@
+services:
+  neveridle:
+    image: ${NEVERIDLE_IMAGE:-shadowofgost/neveridle:latest}
+    restart: unless-stopped
+    command:
+      - "-${NEVERIDLE_CPU_MODE:-c}"
+      - "${NEVERIDLE_CPU_VALUE:-2h}"
+      - "-m"
+      - "${NEVERIDLE_MEMORY_GIB:-2}"
+      - "-n"
+      - "${NEVERIDLE_NETWORK_INTERVAL:-4h}"
+      - "-t"
+      - "${NEVERIDLE_NETWORK_CONNECTIONS:-10}"
