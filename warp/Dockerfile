@@ -1,3 +1,10 @@
+FROM rust:1-bookworm AS builder
+
+WORKDIR /build
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+RUN cargo build --release --locked
+
 FROM ubuntu:26.04
 
 ARG COMMIT_SHA=unknown
@@ -8,7 +15,7 @@ LABEL org.opencontainers.image.source="https://github.com/shadowofgost/auto-work
 RUN set -eux; \
     case "${TARGETARCH:-$(dpkg --print-architecture)}" in amd64|arm64) ;; *) exit 1 ;; esac; \
     apt-get update; \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl gpg python3-minimal; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl gpg; \
     curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | gpg --batch --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg; \
     . /etc/os-release; \
     test "$ID" = ubuntu; \
@@ -22,12 +29,9 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*; \
     mkdir -p /root/.local/share/warp; printf yes > /root/.local/share/warp/accepted-tos.txt
 
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-COPY supervisor.py /usr/local/lib/warp/supervisor.py
-COPY healthcheck.sh /usr/local/bin/warp-healthcheck
-RUN chmod 755 /docker-entrypoint.sh /usr/local/bin/warp-healthcheck
+COPY --from=builder /build/target/release/warp-supervisor /usr/local/bin/warp-supervisor
 
 ENV WARP_SLEEP=2 WARP_PROXY=TRUE WARP_PORT=40000 WARP_LOG_LEVEL=info WARP_ENABLE_QLOG=false
-HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=3 CMD ["/usr/local/bin/warp-healthcheck"]
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=3 CMD ["/usr/local/bin/warp-supervisor", "healthcheck"]
 STOPSIGNAL SIGTERM
-ENTRYPOINT ["/docker-entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/warp-supervisor"]

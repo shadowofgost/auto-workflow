@@ -5,7 +5,18 @@ networking, applications on the host (including Xray using host networking)
 can connect to `socks5h://127.0.0.1:40000`. A bridge container's own localhost
 does not point at that listener. This image does not contain GOST.
 
-**Azure acceptance (2026-10-25): passed with host networking + NET_ADMIN.**
+The production supervisor is a single Rust executable. It handles startup,
+registration/license updates, log filtering, shutdown and health checks. A
+multi-stage build uses `rust:1-bookworm` to produce a GNU/glibc executable;
+the final Ubuntu image
+does not install Python or a Rust compiler. No separate startup or healthcheck
+scripts are required. Logs continue to go to Docker stdout; lifecycle
+timestamps are Unix seconds in UTC. Client-internal diagnostic files remain
+independent of Docker's log rotation.
+
+**Previous Python-based image: Azure acceptance (2026-10-25) passed with host networking + NET_ADMIN.**
+Those historical results do not validate the Rust rewrite; a new candidate
+must pass the same native builds and Azure acceptance before promotion.
 The Ubuntu 26.04/resolute image (WARP 2026.8.2115.0) failed the same-image
 control without NET_ADMIN and passed the proxy, restart and ten-minute
 stability checks with it. The constrained upstream stock entrypoint and
@@ -66,6 +77,9 @@ filtering does not claim to disable all internal diagnostic writes.
 
 The container accepts command overrides for diagnostics, for example
 `docker run --rm shadowofgost/warp:latest warp-cli --version`.
+The built-in health check is `warp-supervisor healthcheck`; it uses curl with
+SOCKS5 remote DNS and requires an exact `warp=on` or `warp=plus` trace line.
+`warp-supervisor --version` prints the supervisor version without starting WARP.
 
 ## Native amd64 and arm64 release
 
@@ -95,11 +109,15 @@ not log in or publish. ARM means arm64/aarch64, not arm/v7.
 ## Tests and Azure comparison
 
 ```sh
+cargo test --manifest-path warp/Cargo.toml --locked
 python3 -m unittest discover -s warp/tests -v
 ```
 
-The maintenance tests require PyYAML (already installed on the Azure host);
-the WARP image itself does not depend on PyYAML.
+Rust tests cover registration preservation, license updates, log redaction,
+CLI deadlines, health checks and real process shutdown. Unix process tests
+run on both native CI architectures. Python files are host-side maintenance
+tools and their tests, excluded from the Docker build context; they require
+PyYAML. The WARP container has no Python runtime requirement.
 
 `test-azure-warp.py` can be piped over SSH to Python on Azure. Its default
 checks only direct and WARP egress. `--containers` adds temporary curl
@@ -123,10 +141,18 @@ proxy and a repeat of the candidate. Image references are pinned after pulling.
 The upstream stock-entrypoint test adds `GOST_ARGS=-L 127.0.0.1:1080` and an
 empty `WARP_ENABLE_NAT` to prevent public GOST listening or NAT configuration;
 it is skipped if port 1080 is occupied. These differences are reported. The
-adapted test mounts this image's supervisor through a separate `sudo -E
-python3` entrypoint, using only the upstream image's WARP client; GOST,
+adapted test mounts the Rust supervisor and runs it as root,
+using only the upstream image's WARP client; GOST,
 TUN creation and NAT are not started. It compares native proxies at port
 40000, not GOST throughput or upstream's default tunnel architecture.
+
+Before an adapted trial, copy `/usr/local/bin/warp-supervisor` out of the
+candidate image built for the Azure host architecture and supply its absolute
+host path with `--supervisor` (default `/tmp/warp-supervisor`). Keep its execute
+permission. The GNU/glibc binary must also be compatible with the host and
+upstream image. Before stopping any services, the comparison tool checks that
+the binary executes in the pinned upstream image; an incompatible libc fails
+the preflight instead of proceeding with the trial.
 
 The full test requires two ten-minute observation windows, plus sequential
 requests, restart checks and a repeat of the candidate. Raw samples go to

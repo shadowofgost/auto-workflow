@@ -234,12 +234,16 @@ class Comparison:
 
     def launch(self, image, adapted=False, production=False, net_admin=None, stock=False):
         old = self.original
-        health = old["Config"]["Healthcheck"]
+        # A shared trace probe works in both the Rust and upstream images;
+        # their entrypoint/healthcheck executable paths are not interchangeable.
+        health = ("curl --noproxy '' --socks5-hostname 127.0.0.1:40000 "
+                  "--connect-timeout 2 --max-time 4 -fsS https://cloudflare.com/cdn-cgi/trace "
+                  "| grep -qE '^warp=(on|plus)$'")
         args = ["docker", "run", "-d", "--name", "warp", "--network", "host",
                 "--restart", "unless-stopped", "--env-file", str(self.work / "environment"),
                 "--expose", "40000", "--volume", f"{DATA}:/var/lib/cloudflare-warp",
                 "--log-driver", "json-file", "--log-opt", "max-size=10m", "--log-opt", "max-file=3",
-                "--health-cmd", health["Test"][1], "--health-interval", "15s", "--health-timeout", "5s",
+                "--health-cmd", health, "--health-interval", "15s", "--health-timeout", "5s",
                 "--health-start-period", "60s", "--health-retries", "3"]
         grant = self.net_admin if net_admin is None else net_admin
         if grant:
@@ -253,12 +257,9 @@ class Comparison:
             for key, value in old["Config"].get("Labels", {}).items():
                 args += ["--label", f"{key}={value}"]
         if adapted:
-            args += ["--volume", f"{self.args.supervisor}:/warp-benchmark/supervisor.py:ro",
-                     "--volume", f"{self.work / 'adapter.sh'}:/warp-benchmark/adapter.sh:ro",
-                     "--entrypoint", "/bin/sh"]
+            args += ["--volume", f"{self.args.supervisor}:/warp-benchmark/warp-supervisor:ro",
+                     "--user", "0:0", "--entrypoint", "/warp-benchmark/warp-supervisor"]
         args += [image]
-        if adapted:
-            args += ["/warp-benchmark/adapter.sh"]
         self.command(*args, timeout=90)
         inspected = self.inspect()
         image_info = json.loads(self.command("docker", "image", "inspect", inspected["Image"]).stdout)[0]
@@ -303,6 +304,15 @@ class Comparison:
             pinned = reference if "@sha256:" in reference else info["RepoDigests"][0]
             setattr(self.args, attribute, pinned)
         self.event("images_pulled")
+        # The Bookworm-built GNU binary must load in the upstream image too.
+        # Check it before stopping Watchtower or the current WARP container.
+        adapter_version = self.command(
+            "docker", "run", "--rm", "--network", "none", "--user", "0:0",
+            "--volume", f"{self.args.supervisor}:/warp-benchmark/warp-supervisor:ro",
+            "--entrypoint", "/warp-benchmark/warp-supervisor", self.args.upstream,
+            "--version", timeout=30)
+        if not adapter_version.stdout.startswith("warp-supervisor "):
+            raise RuntimeError("Rust supervisor cannot execute in the pinned upstream image")
         data_size = sum(path.stat().st_size for path in DATA.rglob("*") if path.is_file())
         log = self.original.get("LogPath")
         log_size = Path(log).stat().st_size if log and Path(log).exists() else 0
@@ -329,8 +339,6 @@ class Comparison:
         if log and Path(log).exists():
             shutil.copyfile(log, self.work / "original-docker.log")
             (self.work / "original-docker.log").chmod(0o600)
-        (self.work / "adapter.sh").write_text("#!/bin/sh\nset -eu\nexec sudo -E python3 /warp-benchmark/supervisor.py\n")
-        (self.work / "adapter.sh").chmod(0o755)
         self.event("snapshot_complete", registration=self.identity_before, archived_log_bytes=log_size,
                    backup_container=self.backup_name)
 
@@ -459,6 +467,13 @@ class Comparison:
     def run(self):
         if self.output.exists() or (self.work / "control.json").exists():
             raise RuntimeError("Run directory already contains evidence; choose a new --work")
+        supervisor = Path(self.args.supervisor).resolve()
+        if not supervisor.is_file() or not os.access(supervisor, os.X_OK):
+            raise RuntimeError("--supervisor must point to an executable Rust supervisor before starting a trial")
+        self.args.supervisor = str(supervisor)
+        version = self.command(self.args.supervisor, "--version", timeout=10)
+        if not version.stdout.startswith("warp-supervisor "):
+            raise RuntimeError("--supervisor is not a Rust WARP supervisor for this host")
         if os.geteuid() != 0:
             raise RuntimeError("Run with sudo to preserve data ownership and protect the snapshot")
         import fcntl
@@ -622,7 +637,8 @@ def main():
     parser.add_argument("--image")
     parser.add_argument("--upstream", default="caomingjun/warp:latest")
     parser.add_argument("--work", default="/var/tmp/warp-upgrade-" + datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
-    parser.add_argument("--supervisor", default="/tmp/warp-supervisor-20261018.py")
+    parser.add_argument("--supervisor", default="/tmp/warp-supervisor",
+                        help="Rust supervisor binary compatible with this host and the upstream image")
     parser.add_argument("--production-image", help="Require a promotion-approved gate before deploying this tag")
     parser.add_argument("--net-admin", action="store_true", help="Grant NET_ADMIN and include a same-image no-capability control")
     parser.add_argument("--ssh-peer", default=os.environ.get("SSH_CONNECTION", "").split(" ")[0] or None)

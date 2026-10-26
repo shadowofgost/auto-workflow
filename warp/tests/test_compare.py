@@ -62,7 +62,7 @@ class ComparisonTests(unittest.TestCase):
 
     def test_net_admin_is_opt_in_and_applies_to_both_entrypoints(self):
         self.subject.original = {"Config": {"Healthcheck": {"Test": ["CMD-SHELL", "healthcheck"]}}}
-        self.subject.args.supervisor = "/tmp/supervisor.py"
+        self.subject.args.supervisor = "/tmp/warp-supervisor"
         self.subject.inspect = Mock(return_value={"Image": "trial", "Config": {"Entrypoint": ["entrypoint"]}})
         info = {"RepoDigests": ["image@sha256:test"], "Config": {"Labels": {}}, "Size": 1}
         def response(*args, **kwargs):
@@ -79,6 +79,10 @@ class ComparisonTests(unittest.TestCase):
             self.assertEqual(argv[argv.index("--cap-add") + 1], "NET_ADMIN")
             self.assertNotIn("--privileged", argv)
             self.assertNotIn("--device", argv)
+            if adapted:
+                self.assertIn("/tmp/warp-supervisor:/warp-benchmark/warp-supervisor:ro", argv)
+                self.assertEqual(argv[argv.index("--entrypoint") + 1], "/warp-benchmark/warp-supervisor")
+                self.assertEqual(argv[argv.index("--user") + 1], "0:0")
         self.subject.command.reset_mock()
         self.subject.launch("own", net_admin=False)
         self.assertNotIn("--cap-add", self.subject.command.call_args_list[0].args)
@@ -117,6 +121,13 @@ class ComparisonTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "already contains evidence"):
             self.subject.run()
         self.assertEqual(self.subject.output.read_text(), "previous evidence\n")
+
+    def test_missing_rust_adapter_fails_before_touching_services(self):
+        self.subject.args.supervisor = str(Path(self.directory.name) / "missing-supervisor")
+        self.subject.command = Mock()
+        with self.assertRaisesRegex(RuntimeError, "executable Rust supervisor"):
+            self.subject.run()
+        self.subject.command.assert_not_called()
 
     def test_atomic_compose_write_preserves_owner_and_validates_both_files(self):
         compose = Path(self.directory.name) / "azure.yml"

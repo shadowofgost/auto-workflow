@@ -1,0 +1,17 @@
+[package]
+name = "warp-supervisor"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+signal-hook = { version = "0.4", default-features = false }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+

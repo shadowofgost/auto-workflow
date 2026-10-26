@@ -1,4 +1,5 @@
 *
-!docker-entrypoint.sh
-!supervisor.py
-!healthcheck.sh
+!Cargo.toml
+!Cargo.lock
+!src/
+!src/**

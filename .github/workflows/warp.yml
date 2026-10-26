@@ -43,12 +43,17 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@1.90.0
+        with:
+          components: rustfmt, clippy
       - name: Test startup, shutdown and logging
         run: |
+          cargo fmt --manifest-path warp/Cargo.toml -- --check
+          cargo clippy --manifest-path warp/Cargo.toml --all-targets --locked -- -D warnings
+          cargo test --manifest-path warp/Cargo.toml --locked
           python3 -m venv "$RUNNER_TEMP/warp-tests"
           "$RUNNER_TEMP/warp-tests/bin/python" -m pip install PyYAML
           "$RUNNER_TEMP/warp-tests/bin/python" -m unittest discover -s warp/tests -v
-          sh -n warp/docker-entrypoint.sh warp/healthcheck.sh
       - uses: docker/setup-buildx-action@v4
       - name: Build once on the native architecture
         uses: docker/build-push-action@v7
@@ -69,12 +74,14 @@ jobs:
           docker run --rm --entrypoint warp-cli "warp-ci:$ARCH" --version
           docker run --rm --entrypoint sh "warp-ci:$ARCH" -ec 'test "$(cat /etc/warp-package-architecture)" = "$1"; cat /etc/warp-package-version' -- "$ARCH"
           docker run --rm --entrypoint sh "warp-ci:$ARCH" -ec 'grep -qx distribution=ubuntu /etc/warp-package-source; cat /etc/warp-package-source; cat /etc/apt/sources.list.d/cloudflare-client.list'
-          docker run --rm "warp-ci:$ARCH" python3 -c 'print("entrypoint command override works")'
+          docker run --rm "warp-ci:$ARCH" --version
+          docker run --rm "warp-ci:$ARCH" /bin/echo 'entrypoint command override works'
+          docker run --rm --entrypoint sh "warp-ci:$ARCH" -ec 'for tool in python3 rustc cargo; do if command -v "$tool"; then echo "Unexpected runtime tool: $tool" >&2; exit 1; fi; done'
       - name: Check bounded Docker log rotation
         env:
           ARCH: ${{ matrix.arch }}
         run: |
-          docker run --name warp-log-check --log-driver=json-file --log-opt max-size=10k --log-opt max-file=3 --entrypoint python3 "warp-ci:$ARCH" -c 'for n in range(2000): print("INFO rotation-check " + "x" * 200)' > /dev/null
+          docker run --name warp-log-check --log-driver=json-file --log-opt max-size=10k --log-opt max-file=3 "warp-ci:$ARCH" /bin/sh -c 'i=0; while [ "$i" -lt 2000 ]; do printf "INFO rotation-check %0200d\n" "$i"; i=$((i + 1)); done' > /dev/null
           path=$(docker inspect --format '{{.LogPath}}' warp-log-check)
           sudo python3 - "$path" <<'PY'
           import glob, os, sys
@@ -133,7 +140,7 @@ jobs:
             if [ "$PUBLISH_LATEST" = true ]; then tags+=(--tag "$repo:latest"); fi
             docker buildx imagetools create "${tags[@]}" "$repo:sha-$GITHUB_SHA-amd64" "$repo:sha-$GITHUB_SHA-arm64"
             docker buildx imagetools inspect --raw "$repo:sha-$GITHUB_SHA" > manifest.json
-            python3 -c 'import json; p={x["platform"]["architecture"] for x in json.load(open("manifest.json"))["manifests"] if x["platform"]["os"]=="linux"}; assert p == {"amd64", "arm64"}, p'
+            jq -e '[.manifests[].platform | select(.os == "linux") | .architecture] | unique == ["amd64", "arm64"]' manifest.json
             echo "Published $repo:sha-$GITHUB_SHA (amd64 + arm64)" >> "$GITHUB_STEP_SUMMARY"
           done
 
@@ -162,7 +169,7 @@ jobs:
           for repo in shadowofgost/warp ghcr.io/shadowofgost/warp; do
             source="$repo:sha-$SOURCE_SHA"
             docker buildx imagetools inspect --raw "$source" > manifest.json
-            python3 -c 'import json; p={x["platform"]["architecture"] for x in json.load(open("manifest.json"))["manifests"] if x["platform"]["os"]=="linux"}; assert p == {"amd64", "arm64"}, p'
+            jq -e '[.manifests[].platform | select(.os == "linux") | .architecture] | unique == ["amd64", "arm64"]' manifest.json
             digest=$(docker buildx imagetools inspect "$source" --format '{{json .Manifest}}' | jq -r .digest)
             test "$digest" != null
             docker buildx imagetools create --tag "$repo:latest" "$repo@$digest"
