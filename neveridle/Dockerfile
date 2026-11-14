@@ -22,7 +22,7 @@ RUN set -eu; \
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-FROM scratch
+FROM alpine:latest
 
 # 1. 标注版本：使用 OCI 标准 Labels
 ARG NEVERIDLE_VERSION=latest
