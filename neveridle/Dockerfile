@@ -25,7 +25,7 @@ FROM scratch
 # 1. 标注版本：使用 OCI 标准 Labels
 ARG NEVERIDLE_VERSION=latest
 LABEL org.opencontainers.image.title="NeverIdle" \
-      org.opencontainers.image.version="${NEVERIDLE_VERSION}" \
+      org.opencontainers.image.version="${NEVERIDLE_VERSION}" 
 
 # 2. 复制二进制、CA 证书和入口脚本
 COPY --from=builder /NeverIdle /NeverIdle
