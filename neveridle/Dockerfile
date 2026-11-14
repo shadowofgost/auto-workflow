@@ -19,19 +19,19 @@ RUN set -eu; \
     wget -O /NeverIdle "$release_url/NeverIdle-linux-$TARGETARCH"; \
     test -s /NeverIdle; \
     chmod +x /NeverIdle
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 FROM scratch
 
 # 1. 标注版本：使用 OCI 标准 Labels
 ARG NEVERIDLE_VERSION=latest
 LABEL org.opencontainers.image.title="NeverIdle" \
-      org.opencontainers.image.version="${NEVERIDLE_VERSION}" 
+      org.opencontainers.image.version="${NEVERIDLE_VERSION}"
 
 # 2. 复制二进制、CA 证书和入口脚本
 COPY --from=builder /NeverIdle /NeverIdle
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
-RUN chmod +x /NeverIdle
+COPY --from=builder /docker-entrypoint.sh /docker-entrypoint.sh
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
