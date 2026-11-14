@@ -1,13 +1,15 @@
 services:
   neveridle:
-    image: ${NEVERIDLE_IMAGE:-shadowofgost/neveridle:latest}
+    image: shadowofgost/neveridle:latest
+    container_name: neveridle
     restart: unless-stopped
-    command:
-      - "-${NEVERIDLE_CPU_MODE:-c}"
-      - "${NEVERIDLE_CPU_VALUE:-2h}"
-      - "-m"
-      - "${NEVERIDLE_MEMORY_GIB:-2}"
-      - "-n"
-      - "${NEVERIDLE_NETWORK_INTERVAL:-4h}"
-      - "-t"
-      - "${NEVERIDLE_NETWORK_CONNECTIONS:-10}"
+    environment:
+      # 以下变量会由 docker-entrypoint.sh 转换为 NeverIdle 命令行参数
+      # NEVERIDLE_CPU_INTERVAL: "1h"
+      NEVERIDLE_MEMORY: "0.5"
+      NEVERIDLE_NETWORK_INTERVAL: "4h"
+      NEVERIDLE_CPU_PERCENT: "0.3"   # 与 CPU_INTERVAL 二选一，不要同时设置
+      # NEVERIDLE_THREADS: "10"
+      # NEVERIDLE_PRIORITY: "19"
+    # 如需内存限制，建议比 NEVERIDLE_MEMORY 略大一些
+    mem_limit: 0.5g
